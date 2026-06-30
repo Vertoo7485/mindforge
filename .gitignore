@@ -1,0 +1,9 @@
+build/
+.dart_tool/
+*.g.dart
+*.freezed.dart
+.metadata
+*.iml
+.gradle/
+local.properties
+
