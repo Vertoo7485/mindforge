@@ -9,7 +9,7 @@ part 'transaction_model.g.dart';
 // Таблица транзакций
 class Transactions extends Table {
   IntColumn get id => integer().autoIncrement()();
-  TextColumn get type => text()(); // 'income' или 'expense'
+  TextColumn get type => text()();
   RealColumn get amount => real()();
   TextColumn get category => text()();
   DateTimeColumn get date => dateTime()();
@@ -20,26 +20,37 @@ class Transactions extends Table {
 // Таблица бюджетов
 class Budgets extends Table {
   IntColumn get id => integer().autoIncrement()();
-  TextColumn get category => text().nullable()(); // null = общий бюджет
-  RealColumn get amount => real()(); // сумма бюджета
-  TextColumn get period => text()(); // 'monthly', 'weekly', 'yearly'
+  TextColumn get category => text().nullable()();
+  RealColumn get amount => real()();
+  TextColumn get period => text()();
   DateTimeColumn get startDate => dateTime()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
-// Сама база данных
-@DriftDatabase(tables: [Transactions, Budgets])
+// Таблица целей накопления
+class SavingsGoals extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get title => text()();
+  RealColumn get targetAmount => real()();
+  RealColumn get currentAmount => real().withDefault(const Constant(0))();
+  DateTimeColumn get deadline => dateTime().nullable()();
+  TextColumn get icon => text().withDefault(const Constant('🎯'))();
+  BoolColumn get isCompleted => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+@DriftDatabase(tables: [Transactions, Budgets, SavingsGoals])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onUpgrade: (m, from, to) async {
-      if (from < 2) {
-        await m.createTable(budgets);
+      if (from < 3) {
+        await m.createTable(savingsGoals);
       }
     },
   );
@@ -70,7 +81,6 @@ class AppDatabase extends _$AppDatabase {
     )..orderBy([(t) => OrderingTerm.desc(t.createdAt)])).get();
   }
 
-  // Транзакции за период
   Future<List<Transaction>> getTransactionsByPeriod(
     DateTime start,
     DateTime end,
@@ -94,7 +104,6 @@ class AppDatabase extends _$AppDatabase {
     return query.read<double>('total')!;
   }
 
-  // Доходы и расходы по месяцам (для столбчатой диаграммы)
   Future<List<Map<String, dynamic>>> monthlySummary() async {
     return customSelect(
       'SELECT '
@@ -129,7 +138,6 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  // Расходы по категориям за период
   Future<List<Map<String, dynamic>>> expensesByCategoryForPeriod(
     DateTime start,
     DateTime end,
@@ -152,14 +160,12 @@ class AppDatabase extends _$AppDatabase {
 
   // ======== БЮДЖЕТЫ ========
 
-  // Добавить бюджет
   Future<void> setBudget({
     String? category,
     required double amount,
     required String period,
     required DateTime startDate,
   }) async {
-    // Удаляем старый бюджет для этой категории/периода
     if (category != null) {
       await (delete(budgets)..where(
             (b) => b.category.equals(category) & b.period.equals(period),
@@ -181,12 +187,10 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  // Получить все бюджеты
   Future<List<Budget>> getAllBudgets() {
     return select(budgets).get();
   }
 
-  // Получить бюджет по категории
   Future<Budget?> getBudgetByCategory(String? category) {
     if (category == null) {
       return (select(budgets)
@@ -200,13 +204,53 @@ class AppDatabase extends _$AppDatabase {
         .getSingleOrNull();
   }
 
-  // Удалить бюджет
   Future<void> deleteBudget(int id) async {
     await (delete(budgets)..where((b) => b.id.equals(id))).go();
   }
+
+  // ======== ЦЕЛИ НАКОПЛЕНИЯ ========
+
+  Future<void> addSavingsGoal({
+    required String title,
+    required double targetAmount,
+    DateTime? deadline,
+    String icon = '🎯',
+  }) async {
+    await into(savingsGoals).insert(
+      SavingsGoalsCompanion(
+        title: Value(title),
+        targetAmount: Value(targetAmount),
+        deadline: Value.absentIfNull(deadline),
+        icon: Value(icon),
+      ),
+    );
+  }
+
+  Future<List<SavingsGoal>> getAllSavingsGoals() {
+    return (select(
+      savingsGoals,
+    )..orderBy([(s) => OrderingTerm.desc(s.createdAt)])).get();
+  }
+
+  Future<void> updateSavingsGoalAmount(int id, double amount) async {
+    final completed =
+        amount >=
+        (await (select(savingsGoals)..where((s) => s.id.equals(id)))
+            .getSingle()
+            .then((g) => g.targetAmount));
+    await (update(savingsGoals)..where((s) => s.id.equals(id))).write(
+      SavingsGoalsCompanion(
+        currentAmount: Value(amount),
+        isCompleted: Value(completed),
+      ),
+    );
+  }
+
+  Future<void> deleteSavingsGoal(int id) async {
+    await (delete(savingsGoals)..where((s) => s.id.equals(id))).go();
+  }
 }
 
-// Открытие базы
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();

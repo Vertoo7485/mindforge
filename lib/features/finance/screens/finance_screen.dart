@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../../main.dart';
 import '../models/transaction_model.dart';
 import 'budget_screen.dart';
+import 'savings_screen.dart';
 
 class FinanceScreen extends StatefulWidget {
   const FinanceScreen({super.key});
@@ -94,6 +95,16 @@ class _FinanceScreenState extends State<FinanceScreen> {
       appBar: AppBar(
         title: const Text('Финансы'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.flag_outlined),
+            tooltip: 'Цели',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SavingsScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.account_balance_wallet_outlined),
             tooltip: 'Бюджеты',
