@@ -4,6 +4,75 @@ import '../../../main.dart';
 import '../models/transaction_model.dart';
 import 'budget_screen.dart';
 import 'savings_screen.dart';
+import 'history_screen.dart';
+import 'finance_onboarding.dart';
+
+// Советы по финансовой грамотности
+final List<Map<String, String>> _financialTips = [
+  {
+    'title': 'Правило 50/30/20',
+    'body':
+        '50% дохода — на необходимое (жильё, еда, транспорт). '
+        '30% — на желания (развлечения, хобби). '
+        '20% — на сбережения и инвестиции. '
+        'Это базовая формула финансового здоровья.',
+    'icon': '📊',
+  },
+  {
+    'title': 'Подушка безопасности',
+    'body':
+        'Финансовая подушка — это 3-6 месячных расходов, '
+        'которые лежат на отдельном счёте. '
+        'Она защищает от неожиданных ситуаций: потеря работы, '
+        'болезнь, срочный ремонт. Начните откладывать 5-10% дохода.',
+    'icon': '🛡️',
+  },
+  {
+    'title': 'Метод конвертов',
+    'body':
+        'Разложите деньги по категориям в начале месяца. '
+        'Когда конверт пуст — траты в этой категории прекращаются. '
+        'Это помогает контролировать импульсивные покупки '
+        'и видеть реальную картину расходов.',
+    'icon': '✉️',
+  },
+  {
+    'title': 'Осознанные траты',
+    'body':
+        'Перед покупкой задайте себе три вопроса: '
+        '1) Это действительно нужно? '
+        '2) Это принесёт пользу через месяц? '
+        '3) Я могу позволить себе это без ущерба для целей? '
+        'Пауза в 24 часа спасает от импульсивных решений.',
+    'icon': '🧠',
+  },
+  {
+    'title': 'Цена импульса',
+    'body':
+        'Импульсивные покупки — это способ справиться с эмоциями. '
+        'Вместо покупки попробуйте: прогулку, дыхательное упражнение, '
+        'звонок другу. Запишите, что вы хотели купить — '
+        'через неделю 80% желаний исчезают.',
+    'icon': '💡',
+  },
+  {
+    'title': 'Сначала заплати себе',
+    'body':
+        'Откладывайте 10-20% дохода СРАЗУ после получения, '
+        'до любых трат. Автоматический перевод на накопительный счёт '
+        'убирает соблазн потратить. Это главный принцип '
+        'построения капитала.',
+    'icon': '🏦',
+  },
+  {
+    'title': 'Финансовый дневник',
+    'body':
+        'Записывайте не только суммы, но и эмоции при тратах. '
+        'Это поможет заметить триггеры: стресс, скука, социальное давление. '
+        'Осознанность в финансах начинается с понимания своих паттернов.',
+    'icon': '📝',
+  },
+];
 
 class FinanceScreen extends StatefulWidget {
   const FinanceScreen({super.key});
@@ -16,15 +85,32 @@ class _FinanceScreenState extends State<FinanceScreen> {
   List<Transaction> _transactions = [];
   double _balance = 0;
   List<Map<String, dynamic>> _expensesByCategory = [];
-  List<Map<String, dynamic>> _monthlySummary = [];
   Budget? _generalBudget;
+  Map<String, String> _dailyTip = {};
+  bool _showOnboarding = false;
 
-  String _periodFilter = 'all'; // 'week', 'month', 'year', 'all'
+  String _periodFilter = 'all';
 
   @override
   void initState() {
     super.initState();
+    _dailyTip = _getDailyTip();
     _loadData();
+    _checkOnboarding();
+  }
+
+  Future<void> _checkOnboarding() async {
+    final shouldShow = await FinanceOnboarding.shouldShow();
+    if (mounted) {
+      setState(() => _showOnboarding = shouldShow);
+    }
+  }
+
+  Map<String, String> _getDailyTip() {
+    final dayOfYear = DateTime.now()
+        .difference(DateTime(DateTime.now().year, 1, 1))
+        .inDays;
+    return _financialTips[dayOfYear % _financialTips.length];
   }
 
   Future<void> _loadData() async {
@@ -54,14 +140,12 @@ class _FinanceScreenState extends State<FinanceScreen> {
     final expenses = _periodFilter == 'all'
         ? await database.expensesByCategory()
         : await database.expensesByCategoryForPeriod(start, end);
-    final monthly = await database.monthlySummary();
     final budget = await database.getBudgetByCategory(null);
 
     setState(() {
       _transactions = transactions;
       _balance = balance;
       _expensesByCategory = expenses;
-      _monthlySummary = monthly;
       _generalBudget = budget;
     });
   }
@@ -86,7 +170,14 @@ class _FinanceScreenState extends State<FinanceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Расходы за период для сравнения с бюджетом
+    if (_showOnboarding) {
+      return FinanceOnboarding(
+        onComplete: () {
+          setState(() => _showOnboarding = false);
+        },
+      );
+    }
+
     final periodExpense = _transactions
         .where((t) => t.type == 'expense')
         .fold<double>(0, (sum, t) => sum + t.amount);
@@ -96,8 +187,16 @@ class _FinanceScreenState extends State<FinanceScreen> {
         title: const Text('Финансы'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: 'Обучение',
+            onPressed: () async {
+              await FinanceOnboarding.reset();
+              setState(() => _showOnboarding = true);
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.flag_outlined),
-            tooltip: 'Цели',
+            tooltip: 'Цели накопления — копите на мечту',
             onPressed: () {
               Navigator.push(
                 context,
@@ -107,7 +206,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.account_balance_wallet_outlined),
-            tooltip: 'Бюджеты',
+            tooltip: 'Бюджеты — установите лимиты на категории',
             onPressed: () {
               Navigator.push(
                 context,
@@ -123,6 +222,12 @@ class _FinanceScreenState extends State<FinanceScreen> {
           // Баланс
           _BalanceCard(balance: _balance),
           const SizedBox(height: 16),
+
+          // Совет дня
+          if (_dailyTip.isNotEmpty) ...[
+            _TipCard(tip: _dailyTip),
+            const SizedBox(height: 16),
+          ],
 
           // Бюджет
           if (_generalBudget != null) ...[
@@ -174,106 +279,12 @@ class _FinanceScreenState extends State<FinanceScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          Text(
+            'Выберите период для аналитики',
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+          ),
           const SizedBox(height: 24),
-
-          // Доходы vs Расходы по месяцам
-          if (_monthlySummary.isNotEmpty) ...[
-            const Text(
-              'ДОХОДЫ И РАСХОДЫ',
-              style: TextStyle(fontSize: 12, letterSpacing: 2),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 200,
-              child: BarChart(
-                BarChartData(
-                  alignment: BarChartAlignment.spaceAround,
-                  maxY:
-                      _monthlySummary
-                          .map(
-                            (m) =>
-                                (m['income'] as double) >
-                                    (m['expense'] as double)
-                                ? (m['income'] as double)
-                                : (m['expense'] as double),
-                          )
-                          .reduce((a, b) => a > b ? a : b) *
-                      1.2,
-                  barGroups: _monthlySummary.reversed.map((m) {
-                    final month = (m['month'] as String).substring(5);
-                    return BarChartGroupData(
-                      x: _monthlySummary.indexOf(m),
-                      barRods: [
-                        BarChartRodData(
-                          toY: (m['income'] as double),
-                          color: Colors.greenAccent,
-                          width: 12,
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(4),
-                          ),
-                        ),
-                        BarChartRodData(
-                          toY: (m['expense'] as double),
-                          color: Colors.redAccent,
-                          width: 12,
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(4),
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
-                  titlesData: FlTitlesData(
-                    show: true,
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          final index = value.toInt();
-                          if (index >= 0 && index < _monthlySummary.length) {
-                            final month =
-                                (_monthlySummary.reversed
-                                            .toList()[index]['month']
-                                        as String)
-                                    .substring(5);
-                            return Text(
-                              month,
-                              style: const TextStyle(fontSize: 10),
-                            );
-                          }
-                          return const Text('');
-                        },
-                      ),
-                    ),
-                    leftTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                  ),
-                  gridData: const FlGridData(show: false),
-                  borderData: FlBorderData(show: false),
-                ),
-              ),
-            ),
-            // Легенда
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _LegendDot(color: Colors.greenAccent, label: 'Доходы'),
-                  const SizedBox(width: 24),
-                  _LegendDot(color: Colors.redAccent, label: 'Расходы'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
 
           // Круговая диаграмма расходов
           if (_expensesByCategory.isNotEmpty) ...[
@@ -297,27 +308,34 @@ class _FinanceScreenState extends State<FinanceScreen> {
             const SizedBox(height: 24),
           ],
 
-          // История транзакций
-          const Text(
-            'ИСТОРИЯ',
-            style: TextStyle(fontSize: 12, letterSpacing: 2),
-          ),
-          const SizedBox(height: 12),
-          if (_transactions.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(32),
-              child: Center(child: Text('Нет транзакций')),
-            )
-          else
-            ..._transactions.map(
-              (t) => _TransactionTile(
-                transaction: t,
-                onDelete: () async {
-                  await database.deleteTransaction(t.id);
-                  _loadData();
+          // Кнопка истории
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const HistoryScreen(),
+                    ),
+                  );
                 },
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: const Text('История транзакций'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.all(16),
+                  side: BorderSide(color: Colors.grey[700]!),
+                ),
               ),
             ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Здесь все ваши доходы и расходы',
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -408,6 +426,76 @@ class _FinanceScreenState extends State<FinanceScreen> {
 }
 
 // ======== ВСПОМОГАТЕЛЬНЫЕ ВИДЖЕТЫ ========
+
+class _TipCard extends StatefulWidget {
+  final Map<String, String> tip;
+  const _TipCard({required this.tip});
+
+  @override
+  State<_TipCard> createState() => _TipCardState();
+}
+
+class _TipCardState extends State<_TipCard> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.tealAccent.withValues(alpha: 0.1),
+            Colors.blueAccent.withValues(alpha: 0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(widget.tip['icon']!, style: const TextStyle(fontSize: 24)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  widget.tip['title']!,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.tealAccent,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: Icon(
+                  _isExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: Colors.tealAccent,
+                ),
+                onPressed: () {
+                  setState(() => _isExpanded = !_isExpanded);
+                },
+              ),
+            ],
+          ),
+          if (_isExpanded) ...[
+            const SizedBox(height: 12),
+            Text(
+              widget.tip['body']!,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[300],
+                height: 1.5,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 class _BalanceCard extends StatelessWidget {
   final double balance;
@@ -552,67 +640,6 @@ class _PeriodButton extends StatelessWidget {
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LegendDot extends StatelessWidget {
-  final Color color;
-  final String label;
-  const _LegendDot({required this.color, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12)),
-      ],
-    );
-  }
-}
-
-class _TransactionTile extends StatelessWidget {
-  final Transaction transaction;
-  final VoidCallback onDelete;
-  const _TransactionTile({required this.transaction, required this.onDelete});
-
-  @override
-  Widget build(BuildContext context) {
-    final isIncome = transaction.type == 'income';
-    return Card(
-      child: ListTile(
-        leading: Icon(
-          isIncome ? Icons.arrow_downward : Icons.arrow_upward,
-          color: isIncome ? Colors.green : Colors.red,
-        ),
-        title: Text(transaction.category),
-        subtitle: transaction.note != null ? Text(transaction.note!) : null,
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '${isIncome ? "+" : "-"}${transaction.amount.toStringAsFixed(0)} ₽',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: isIncome ? Colors.green : Colors.red,
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, size: 20),
-              color: Colors.grey,
-              onPressed: onDelete,
-            ),
-          ],
         ),
       ),
     );

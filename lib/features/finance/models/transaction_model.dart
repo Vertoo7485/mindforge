@@ -107,15 +107,18 @@ class AppDatabase extends _$AppDatabase {
   Future<List<Map<String, dynamic>>> monthlySummary() async {
     return customSelect(
       'SELECT '
-      'strftime(\'%Y-%m\', date / 1000, \'unixepoch\') as month, '
+      'strftime(\'%m\', date / 1000, \'unixepoch\') as month, '
+      'strftime(\'%Y\', date / 1000, \'unixepoch\') as year, '
       'SUM(CASE WHEN type = \'income\' THEN amount ELSE 0 END) as income, '
       'SUM(CASE WHEN type = \'expense\' THEN amount ELSE 0 END) as expense '
       'FROM transactions '
-      'GROUP BY month ORDER BY month DESC LIMIT 6',
+      'GROUP BY year, month ORDER BY year DESC, month DESC LIMIT 6',
     ).get().then(
       (rows) => rows.map((r) {
+        final y = r.read<String>('year');
+        final m = r.read<String>('month');
         return {
-          'month': r.read<String>('month'),
+          'month': '$y-$m',
           'income': r.read<double>('income'),
           'expense': r.read<double>('expense'),
         };

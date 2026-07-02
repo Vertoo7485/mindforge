@@ -59,7 +59,7 @@ class _SavingsScreenState extends State<SavingsScreen> {
                   controller: amountController,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                    labelText: 'Сумма',
+                    labelText: 'Сумма цели',
                     prefixText: '₽ ',
                   ),
                 ),
@@ -144,44 +144,77 @@ class _SavingsScreenState extends State<SavingsScreen> {
 
   Future<void> _addAmount(SavingsGoal goal) async {
     final controller = TextEditingController();
+    final remaining = goal.targetAmount - goal.currentAmount;
 
     final amount = await showDialog<double>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(goal.title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Накоплено: ${goal.currentAmount.toStringAsFixed(0)} из ${goal.targetAmount.toStringAsFixed(0)} ₽',
-              style: const TextStyle(color: Colors.grey),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final monthly = double.tryParse(controller.text);
+          String hint = '';
+          if (monthly != null && monthly > 0 && remaining > 0) {
+            final months = (remaining / monthly).ceil();
+            hint =
+                '💡 Откладывая по ${monthly.toStringAsFixed(0)} ₽ в месяц, '
+                'вы достигнете цели через $months ${_monthsWord(months)}';
+          }
+
+          return AlertDialog(
+            title: Text(goal.title),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Накоплено: ${goal.currentAmount.toStringAsFixed(0)} из ${goal.targetAmount.toStringAsFixed(0)} ₽',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Осталось: ${remaining.toStringAsFixed(0)} ₽',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Добавить сумму',
+                    prefixText: '+ ₽ ',
+                  ),
+                  autofocus: true,
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+                if (hint.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    hint,
+                    style: TextStyle(
+                      color: Colors.tealAccent.withValues(alpha: 0.8),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Добавить сумму',
-                prefixText: '+ ₽ ',
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Отмена'),
               ),
-              autofocus: true,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Отмена'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = double.tryParse(controller.text);
-              Navigator.pop(context, value);
-            },
-            child: const Text('Добавить'),
-          ),
-        ],
+              FilledButton(
+                onPressed: () {
+                  final value = double.tryParse(controller.text);
+                  Navigator.pop(context, value);
+                },
+                child: const Text('Добавить'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -192,9 +225,37 @@ class _SavingsScreenState extends State<SavingsScreen> {
     }
   }
 
+  String _monthsWord(int n) {
+    if (n % 10 == 1 && n % 100 != 11) return 'месяц';
+    if ([2, 3, 4].contains(n % 10) && ![12, 13, 14].contains(n % 100))
+      return 'месяца';
+    return 'месяцев';
+  }
+
   Future<void> _deleteGoal(SavingsGoal goal) async {
-    await database.deleteSavingsGoal(goal.id);
-    _loadGoals();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить цель?'),
+        content: Text('Вы уверены, что хотите удалить "${goal.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await database.deleteSavingsGoal(goal.id);
+      _loadGoals();
+    }
   }
 
   @override
@@ -222,15 +283,25 @@ class _SavingsScreenState extends State<SavingsScreen> {
             )
           : ListView(
               padding: const EdgeInsets.all(16),
-              children: _goals
-                  .map(
-                    (goal) => _GoalCard(
-                      goal: goal,
-                      onTap: () => _addAmount(goal),
-                      onDelete: () => _deleteGoal(goal),
-                    ),
-                  )
-                  .toList(),
+              children: [
+                // Пояснение
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text(
+                    'Откладывайте на мечту и следите за прогрессом. '
+                    'Нажмите на цель, чтобы добавить сумму.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ),
+                // Список целей
+                ..._goals.map(
+                  (goal) => _GoalCard(
+                    goal: goal,
+                    onTap: () => _addAmount(goal),
+                    onDelete: () => _deleteGoal(goal),
+                  ),
+                ),
+              ],
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addGoal,
@@ -254,16 +325,21 @@ class _GoalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percent = (goal.currentAmount / goal.targetAmount).clamp(0.0, 1.0);
-    final color = goal.isCompleted
+    final remaining = goal.targetAmount - goal.currentAmount;
+    final isCompleted = goal.isCompleted;
+
+    final color = isCompleted
         ? Colors.greenAccent
-        : percent > 0.5
-        ? Theme.of(context).colorScheme.primary
-        : Colors.orangeAccent;
+        : percent > 0.6
+        ? Colors.greenAccent
+        : percent > 0.3
+        ? Colors.orangeAccent
+        : Colors.redAccent;
 
     return Card(
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -271,7 +347,20 @@ class _GoalCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text(goal.icon, style: const TextStyle(fontSize: 28)),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Text(
+                        goal.icon,
+                        style: const TextStyle(fontSize: 24),
+                      ),
+                    ),
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -284,7 +373,7 @@ class _GoalCard extends StatelessWidget {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        if (goal.isCompleted)
+                        if (isCompleted)
                           const Text(
                             '✅ Выполнено!',
                             style: TextStyle(
@@ -302,30 +391,67 @@ class _GoalCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     '${goal.currentAmount.toStringAsFixed(0)} / ${goal.targetAmount.toStringAsFixed(0)} ₽',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: color),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                      fontSize: 14,
+                    ),
                   ),
                   Text(
                     '${(percent * 100).toStringAsFixed(0)}%',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: color),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                      fontSize: 14,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: percent,
-                  minHeight: 10,
-                  backgroundColor: Colors.grey[800],
-                  valueColor: AlwaysStoppedAnimation(color),
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  height: 12,
+                  child: Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey[800],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      FractionallySizedBox(
+                        widthFactor: percent,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.orangeAccent,
+                                Colors.yellowAccent,
+                                Colors.greenAccent,
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+              if (!isCompleted && remaining > 0) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Осталось ${remaining.toStringAsFixed(0)} ₽',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                ),
+              ],
             ],
           ),
         ),
