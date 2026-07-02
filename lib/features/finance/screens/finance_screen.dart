@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../main.dart';
 import '../models/transaction_model.dart';
+import '../models/categories_service.dart';
 import 'budget_screen.dart';
 import 'savings_screen.dart';
 import 'history_screen.dart';
 import 'finance_onboarding.dart';
+import 'categories_screen.dart';
 
 // Советы по финансовой грамотности
 final List<Map<String, String>> _financialTips = [
@@ -88,6 +90,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
   Budget? _generalBudget;
   Map<String, String> _dailyTip = {};
   bool _showOnboarding = false;
+  List<String> _expenseCategories = [];
+  List<String> _incomeCategories = [];
 
   String _periodFilter = 'all';
 
@@ -96,6 +100,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     super.initState();
     _dailyTip = _getDailyTip();
     _loadData();
+    _loadCategories();
     _checkOnboarding();
   }
 
@@ -103,6 +108,17 @@ class _FinanceScreenState extends State<FinanceScreen> {
     final shouldShow = await FinanceOnboarding.shouldShow();
     if (mounted) {
       setState(() => _showOnboarding = shouldShow);
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    final expense = await CategoriesService.getExpenseCategories();
+    final income = await CategoriesService.getIncomeCategories();
+    if (mounted) {
+      setState(() {
+        _expenseCategories = expense;
+        _incomeCategories = income;
+      });
     }
   }
 
@@ -153,7 +169,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
   Future<void> _addTransaction() async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => const AddTransactionDialog(),
+      builder: (context) => AddTransactionDialog(
+        expenseCategories: _expenseCategories,
+        incomeCategories: _incomeCategories,
+      ),
     );
 
     if (result != null) {
@@ -212,6 +231,19 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 context,
                 MaterialPageRoute(builder: (context) => const BudgetScreen()),
               ).then((_) => _loadData());
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.category_outlined),
+            tooltip: 'Редактировать категории',
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CategoriesScreen(),
+                ),
+              );
+              _loadCategories();
             },
           ),
         ],
@@ -649,7 +681,14 @@ class _PeriodButton extends StatelessWidget {
 // ======== ДИАЛОГ ДОБАВЛЕНИЯ ========
 
 class AddTransactionDialog extends StatefulWidget {
-  const AddTransactionDialog({super.key});
+  final List<String> expenseCategories;
+  final List<String> incomeCategories;
+
+  const AddTransactionDialog({
+    super.key,
+    required this.expenseCategories,
+    required this.incomeCategories,
+  });
 
   @override
   State<AddTransactionDialog> createState() => _AddTransactionDialogState();
@@ -658,38 +697,51 @@ class AddTransactionDialog extends StatefulWidget {
 class _AddTransactionDialogState extends State<AddTransactionDialog> {
   String _type = 'expense';
   final _amountController = TextEditingController();
+  final _noteController = TextEditingController();
   String _category = 'Продукты';
-
-  final List<String> _expenseCategories = [
-    'Продукты',
-    'Транспорт',
-    'Развлечения',
-    'Здоровье',
-    'Одежда',
-    'Жильё',
-    'Связь',
-    'Кафе и рестораны',
-    'Красота и уход',
-    'Подписки',
-    'Другое',
-  ];
-
-  final List<String> _incomeCategories = [
-    'Зарплата',
-    'Фриланс',
-    'Подарок',
-    'Кэшбэк',
-    'Инвестиции',
-    'Другое',
-  ];
+  DateTime _selectedDate = DateTime.now();
 
   List<String> get _currentCategories =>
-      _type == 'expense' ? _expenseCategories : _incomeCategories;
+      _type == 'expense' ? widget.expenseCategories : widget.incomeCategories;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_currentCategories.isNotEmpty) {
+      _category = _currentCategories.first;
+    }
+  }
 
   @override
   void dispose() {
     _amountController.dispose();
+    _noteController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.dark(
+              primary: Theme.of(context).colorScheme.primary,
+              onPrimary: Colors.black,
+              surface: const Color(0xFF1B1B2F),
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+    }
   }
 
   @override
@@ -709,7 +761,9 @@ class _AddTransactionDialogState extends State<AddTransactionDialog> {
               onSelectionChanged: (selection) {
                 setState(() {
                   _type = selection.first;
-                  _category = _currentCategories.first;
+                  if (_currentCategories.isNotEmpty) {
+                    _category = _currentCategories.first;
+                  }
                 });
               },
             ),
@@ -723,13 +777,39 @@ class _AddTransactionDialogState extends State<AddTransactionDialog> {
               ),
             ),
             const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: _category,
-              items: _currentCategories
-                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                  .toList(),
-              onChanged: (value) => setState(() => _category = value!),
-              decoration: const InputDecoration(labelText: 'Категория'),
+            if (_currentCategories.isNotEmpty)
+              DropdownButtonFormField<String>(
+                value: _currentCategories.contains(_category)
+                    ? _category
+                    : _currentCategories.first,
+                items: _currentCategories
+                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                    .toList(),
+                onChanged: (value) => setState(() => _category = value!),
+                decoration: const InputDecoration(labelText: 'Категория'),
+              ),
+            const SizedBox(height: 16),
+            InkWell(
+              onTap: _pickDate,
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Дата',
+                  suffixIcon: Icon(Icons.calendar_today, size: 20),
+                ),
+                child: Text(
+                  '${_selectedDate.day}.${_selectedDate.month}.${_selectedDate.year}',
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _noteController,
+              decoration: const InputDecoration(
+                labelText: 'Заметка',
+                hintText: 'Необязательно',
+              ),
+              maxLines: 2,
             ),
           ],
         ),
@@ -747,8 +827,10 @@ class _AddTransactionDialogState extends State<AddTransactionDialog> {
                 'type': _type,
                 'amount': amount,
                 'category': _category,
-                'date': DateTime.now(),
-                'note': null,
+                'date': _selectedDate,
+                'note': _noteController.text.trim().isEmpty
+                    ? null
+                    : _noteController.text.trim(),
               });
             }
           },
