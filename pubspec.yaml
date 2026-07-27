@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   
   # База данных
   drift: ^2.21.0
@@ -42,7 +44,7 @@ dependencies:
   google_fonts: ^6.1.0
   
   # Утилиты
-  intl: ^0.19.0
+  intl: ^0.20.2
   uuid: ^4.2.0
 
 dev_dependencies:

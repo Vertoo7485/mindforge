@@ -1,21 +1,20 @@
 import 'package:flutter/material.dart';
 import 'app.dart';
 import 'features/finance/models/transaction_model.dart';
+import 'features/planner/models/planner_database.dart';
 
 late AppDatabase database;
+late PlannerDatabase plannerDatabase;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   database = AppDatabase();
+  plannerDatabase = PlannerDatabase();
   await _seedTestData();
   runApp(const MindForgeApp());
 }
 
 Future<void> _seedTestData() async {
-  // Временно убираем проверку, чтобы заполнить тестовыми данными
-  // final existing = await database.getAllTransactions();
-  // if (existing.isNotEmpty) return;
-
   final now = DateTime.now();
   final categories = [
     'Продукты',
@@ -28,14 +27,12 @@ Future<void> _seedTestData() async {
     'Кафе и рестораны',
   ];
 
-  // Генерируем данные за 6 месяцев
   for (int monthOffset = 5; monthOffset >= 0; monthOffset--) {
     final month = now.month - monthOffset;
     final year = now.year + (month <= 0 ? -1 : 0);
     final adjustedMonth = month <= 0 ? month + 12 : month;
     final daysInMonth = DateTime(year, adjustedMonth + 1, 0).day;
 
-    // Доходы
     await database.addTransaction(
       type: 'income',
       amount: 80000 + (monthOffset * 2000),
@@ -52,7 +49,6 @@ Future<void> _seedTestData() async {
       );
     }
 
-    // Расходы
     for (int day = 1; day <= daysInMonth; day += (3 + (day % 5))) {
       final cat = categories[(day + monthOffset) % categories.length];
       final amount = switch (cat) {
