@@ -51,6 +51,7 @@ class Events extends Table {
   DateTimeColumn get endTime => dateTime().nullable()();
   TextColumn get location => text().nullable()();
   BoolColumn get isAllDay => boolean().withDefault(const Constant(false))();
+  TextColumn get color => text().withDefault(const Constant('blue'))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
@@ -59,14 +60,13 @@ class PlannerDatabase extends _$PlannerDatabase {
   PlannerDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onUpgrade: (m, from, to) async {
-      if (from < 2) {
-        await m.createTable(subtasks);
-      }
+      if (from < 2) await m.createTable(subtasks);
+      if (from < 3) await m.addColumn(events, events.color);
     },
   );
 
@@ -91,8 +91,8 @@ class PlannerDatabase extends _$PlannerDatabase {
   }
 
   Future<List<Task>> getTasksForDate(DateTime date) async {
-    final s = DateTime(date.year, date.month, date.day);
-    final e = s.add(const Duration(days: 1));
+    final s = DateTime(date.year, date.month, date.day),
+        e = s.add(const Duration(days: 1));
     await _generateRecurringTasksForDate(s);
     return (select(tasks)
           ..where(
@@ -114,11 +114,11 @@ class PlannerDatabase extends _$PlannerDatabase {
           ]))
           .get();
 
-  Future<void> toggleTask(int id, bool isCompleted) async {
+  Future<void> toggleTask(int id, bool c) async {
     await (update(tasks)..where((t) => t.id.equals(id))).write(
       TasksCompanion(
-        isCompleted: Value(isCompleted),
-        completedAt: Value(isCompleted ? DateTime.now() : null),
+        isCompleted: Value(c),
+        completedAt: Value(c ? DateTime.now() : null),
       ),
     );
   }
@@ -135,7 +135,7 @@ class PlannerDatabase extends _$PlannerDatabase {
     }
     await toggleTask(task.id, true);
     if (task.recurrence != null && task.dueDate != null) {
-      DateTime next = task.dueDate!;
+      DateTime n = task.dueDate!;
       final today = DateTime(
         DateTime.now().year,
         DateTime.now().month,
@@ -143,42 +143,41 @@ class PlannerDatabase extends _$PlannerDatabase {
       );
       switch (task.recurrence) {
         case 'daily':
-          next = next.add(const Duration(days: 1));
+          n = n.add(const Duration(days: 1));
           break;
         case 'weekly':
-          next = next.add(const Duration(days: 7));
+          n = n.add(const Duration(days: 7));
           break;
         case 'weekdays':
           do {
-            next = next.add(const Duration(days: 1));
-          } while (next.weekday == 6 || next.weekday == 7);
+            n = n.add(const Duration(days: 1));
+          } while (n.weekday == 6 || n.weekday == 7);
           break;
         case 'weekends':
           do {
-            next = next.add(const Duration(days: 1));
-          } while (next.weekday != 6 && next.weekday != 7);
+            n = n.add(const Duration(days: 1));
+          } while (n.weekday != 6 && n.weekday != 7);
           break;
         default:
           return;
       }
-      if (next.isAfter(today)) {
+      if (n.isAfter(today))
         await addTask(
           title: task.title,
           description: task.description,
           priority: task.priority,
-          dueDate: next,
+          dueDate: n,
           recurrence: task.recurrence,
         );
-      }
     }
   }
 
-  Future<void> rescheduleTask(Task task, DateTime newDate) async {
+  Future<void> rescheduleTask(Task task, DateTime nd) async {
     await addTask(
       title: task.title,
       description: task.description,
       priority: task.priority,
-      dueDate: newDate,
+      dueDate: nd,
       recurrence: null,
     );
     await deleteTask(task.id);
@@ -186,11 +185,10 @@ class PlannerDatabase extends _$PlannerDatabase {
 
   // ======== ПОДЗАДАЧИ ========
 
-  Future<void> addSubtask({required int taskId, required String title}) async {
-    await into(
-      subtasks,
-    ).insert(SubtasksCompanion(taskId: Value(taskId), title: Value(title)));
-  }
+  Future<void> addSubtask({required int taskId, required String title}) async =>
+      await into(
+        subtasks,
+      ).insert(SubtasksCompanion(taskId: Value(taskId), title: Value(title)));
 
   Future<List<Subtask>> getSubtasks(int taskId) =>
       (select(subtasks)
@@ -198,37 +196,32 @@ class PlannerDatabase extends _$PlannerDatabase {
             ..orderBy([(s) => OrderingTerm.asc(s.isCompleted)]))
           .get();
 
-  Future<void> toggleSubtask(int id, bool isCompleted) async {
+  Future<void> toggleSubtask(int id, bool c) async {
     await (update(subtasks)..where((s) => s.id.equals(id))).write(
-      SubtasksCompanion(isCompleted: Value(isCompleted)),
+      SubtasksCompanion(isCompleted: Value(c)),
     );
-
     final sub = await (select(
       subtasks,
     )..where((s) => s.id.equals(id))).getSingle();
-    if (isCompleted) {
-      final all = await getSubtasks(sub.taskId);
-      if (all.every((s) => s.isCompleted)) {
+    if (c) {
+      if ((await getSubtasks(sub.taskId)).every((s) => s.isCompleted))
         await toggleTask(sub.taskId, true);
-      }
     } else {
-      final task = await (select(
+      if ((await (select(
         tasks,
-      )..where((t) => t.id.equals(sub.taskId))).getSingle();
-      if (task.isCompleted) {
+      )..where((t) => t.id.equals(sub.taskId))).getSingle()).isCompleted)
         await toggleTask(sub.taskId, false);
-      }
     }
   }
 
   Future<void> deleteSubtask(int id) async =>
       await (delete(subtasks)..where((s) => s.id.equals(id))).go();
 
-  // ======== ГЕНЕРАЦИЯ ПОВТОРЯЮЩИХСЯ ЗАДАЧ ========
+  // ======== ГЕНЕРАЦИЯ ========
 
   Future<void> _generateRecurringTasksForDate(DateTime date) async {
-    final s = DateTime(date.year, date.month, date.day);
-    final e = s.add(const Duration(days: 1));
+    final s = DateTime(date.year, date.month, date.day),
+        e = s.add(const Duration(days: 1));
     final all =
         await (select(tasks)
               ..where(
@@ -238,50 +231,45 @@ class PlannerDatabase extends _$PlannerDatabase {
               ..orderBy([(t) => OrderingTerm.desc(t.dueDate)]))
             .get();
     final seen = <String>{};
-    for (final task in all) {
-      final key = '${task.title}_${task.recurrence}';
+    for (final t in all) {
+      final key = '${t.title}_${t.recurrence}';
       if (seen.contains(key)) continue;
       seen.add(key);
-      if (_shouldTaskAppearOnDate(task, date)) {
-        final ex =
-            await (select(tasks)..where(
-                  (t) =>
-                      t.title.equals(task.title) &
-                      t.dueDate.isBiggerOrEqualValue(s) &
-                      t.dueDate.isSmallerThanValue(e),
+      if (_shouldTaskAppear(t, date)) {
+        if ((await (select(tasks)..where(
+                  (x) =>
+                      x.title.equals(t.title) &
+                      x.dueDate.isBiggerOrEqualValue(s) &
+                      x.dueDate.isSmallerThanValue(e),
                 ))
-                .get();
-        if (ex.isEmpty) {
+                .get())
+            .isEmpty) {
           await addTask(
-            title: task.title,
-            description: task.description,
-            priority: task.priority,
+            title: t.title,
+            description: t.description,
+            priority: t.priority,
             dueDate: date,
-            recurrence: task.recurrence,
+            recurrence: t.recurrence,
           );
         }
       }
     }
   }
 
-  bool _shouldTaskAppearOnDate(Task task, DateTime date) {
-    if (task.dueDate == null || task.recurrence == null) return false;
-    final d = DateTime(
-      task.dueDate!.year,
-      task.dueDate!.month,
-      task.dueDate!.day,
-    );
-    final c = DateTime(date.year, date.month, date.day);
-    if (c.isBefore(d) || c == d) return false;
-    switch (task.recurrence) {
+  bool _shouldTaskAppear(Task t, DateTime d) {
+    if (t.dueDate == null || t.recurrence == null) return false;
+    final dd = DateTime(t.dueDate!.year, t.dueDate!.month, t.dueDate!.day),
+        cd = DateTime(d.year, d.month, d.day);
+    if (cd.isBefore(dd) || cd == dd) return false;
+    switch (t.recurrence) {
       case 'daily':
         return true;
       case 'weekly':
-        return c.difference(d).inDays % 7 == 0;
+        return cd.difference(dd).inDays % 7 == 0;
       case 'weekdays':
-        return c.weekday != 6 && c.weekday != 7;
+        return cd.weekday != 6 && cd.weekday != 7;
       case 'weekends':
-        return c.weekday == 6 || c.weekday == 7;
+        return cd.weekday == 6 || cd.weekday == 7;
       default:
         return false;
     }
@@ -295,17 +283,15 @@ class PlannerDatabase extends _$PlannerDatabase {
     String icon = '🔄',
     String frequency = 'daily',
     int targetCount = 1,
-  }) async {
-    return await into(habits).insert(
-      HabitsCompanion(
-        name: Value(name),
-        description: Value.absentIfNull(description),
-        icon: Value(icon),
-        frequency: Value(frequency),
-        targetCount: Value(targetCount),
-      ),
-    );
-  }
+  }) async => await into(habits).insert(
+    HabitsCompanion(
+      name: Value(name),
+      description: Value.absentIfNull(description),
+      icon: Value(icon),
+      frequency: Value(frequency),
+      targetCount: Value(targetCount),
+    ),
+  );
 
   Future<List<Habit>> getAllHabits() => select(habits).get();
 
@@ -315,72 +301,72 @@ class PlannerDatabase extends _$PlannerDatabase {
   }
 
   Future<void> toggleHabitForDate(int habitId, DateTime date) async {
-    final day = DateTime(date.year, date.month, date.day);
-    final existing =
+    final d = DateTime(date.year, date.month, date.day);
+    final ex =
         await (select(habitCompletions)..where(
               (h) =>
                   h.habitId.equals(habitId) &
-                  h.date.isBetweenValues(day, day.add(const Duration(days: 1))),
+                  h.date.isBetweenValues(d, d.add(const Duration(days: 1))),
             ))
             .get();
-    if (existing.isNotEmpty) {
+    if (ex.isNotEmpty) {
       await (delete(
         habitCompletions,
-      )..where((h) => h.id.equals(existing.first.id))).go();
+      )..where((h) => h.id.equals(ex.first.id))).go();
     } else {
       await into(habitCompletions).insert(
-        HabitCompletionsCompanion(habitId: Value(habitId), date: Value(day)),
+        HabitCompletionsCompanion(habitId: Value(habitId), date: Value(d)),
       );
     }
   }
 
   Future<bool> isHabitDoneForDate(int habitId, DateTime date) async {
-    final day = DateTime(date.year, date.month, date.day);
+    final d = DateTime(date.year, date.month, date.day);
     return (await (select(habitCompletions)..where(
               (h) =>
                   h.habitId.equals(habitId) &
-                  h.date.isBetweenValues(day, day.add(const Duration(days: 1))),
+                  h.date.isBetweenValues(d, d.add(const Duration(days: 1))),
             ))
             .get())
         .isNotEmpty;
   }
 
   Future<int> getHabitStreakForDate(int habitId, DateTime date) async {
-    final habit = await (select(
+    final h = await (select(
       habits,
-    )..where((h) => h.id.equals(habitId))).getSingleOrNull();
-    if (habit == null) return 0;
-    final completions =
+    )..where((x) => x.id.equals(habitId))).getSingleOrNull();
+    if (h == null) return 0;
+    final comps =
         await (select(habitCompletions)
-              ..where((h) => h.habitId.equals(habitId))
-              ..orderBy([(h) => OrderingTerm.desc(h.date)]))
+              ..where((x) => x.habitId.equals(habitId))
+              ..orderBy([(x) => OrderingTerm.desc(x.date)]))
             .get();
-    if (completions.isEmpty) return 0;
-    if (habit.frequency == 'daily' ||
-        habit.frequency == 'weekdays' ||
-        habit.frequency == 'weekends') {
-      int streak = 0;
-      DateTime check = DateTime(date.year, date.month, date.day);
-      for (final c in completions) {
+    if (comps.isEmpty) return 0;
+    if (h.frequency == 'daily' ||
+        h.frequency == 'weekdays' ||
+        h.frequency == 'weekends') {
+      int s = 0;
+      DateTime ck = DateTime(date.year, date.month, date.day);
+      for (final c in comps) {
         final cd = DateTime(c.date.year, c.date.month, c.date.day);
-        if (cd == check) {
-          streak++;
-          check = check.subtract(const Duration(days: 1));
-        } else if (cd == check.subtract(const Duration(days: 1))) {
-          streak++;
-          check = cd.subtract(const Duration(days: 1));
+        if (cd == ck) {
+          s++;
+          ck = ck.subtract(const Duration(days: 1));
+        } else if (cd == ck.subtract(const Duration(days: 1))) {
+          s++;
+          ck = cd.subtract(const Duration(days: 1));
         } else
           break;
       }
-      return streak;
+      return s;
     }
-    if (habit.frequency == 'custom') {
+    if (h.frequency == 'custom') {
       final ws = DateTime(
         date.year,
         date.month,
         date.day,
       ).subtract(Duration(days: date.weekday - 1));
-      return completions.where((c) {
+      return comps.where((c) {
         final d = DateTime(c.date.year, c.date.month, c.date.day);
         return d.isAfter(ws.subtract(const Duration(days: 1))) &&
             d.isBefore(ws.add(const Duration(days: 7)));
@@ -398,13 +384,12 @@ class PlannerDatabase extends _$PlannerDatabase {
       date.month,
       date.day,
     ).subtract(Duration(days: date.weekday - 1));
-    final we = ws.add(const Duration(days: 7));
-    final result =
-        await (select(habitCompletions)..where(
-              (h) => h.habitId.equals(habitId) & h.date.isBetweenValues(ws, we),
+    return (await (select(habitCompletions)..where(
+              (h) =>
+                  h.habitId.equals(habitId) &
+                  h.date.isBetweenValues(ws, ws.add(const Duration(days: 7))),
             ))
-            .get();
-    return result
+            .get())
         .map((c) => DateTime(c.date.year, c.date.month, c.date.day))
         .toSet();
   }
@@ -418,6 +403,7 @@ class PlannerDatabase extends _$PlannerDatabase {
     DateTime? endTime,
     String? location,
     bool isAllDay = false,
+    String color = 'blue',
   }) async {
     await into(events).insert(
       EventsCompanion(
@@ -427,6 +413,30 @@ class PlannerDatabase extends _$PlannerDatabase {
         endTime: Value.absentIfNull(endTime),
         location: Value.absentIfNull(location),
         isAllDay: Value(isAllDay),
+        color: Value(color),
+      ),
+    );
+  }
+
+  Future<void> updateEvent({
+    required int id,
+    required String title,
+    String? description,
+    required DateTime startTime,
+    DateTime? endTime,
+    String? location,
+    bool isAllDay = false,
+    String color = 'blue',
+  }) async {
+    await (update(events)..where((e) => e.id.equals(id))).write(
+      EventsCompanion(
+        title: Value(title),
+        description: Value.absentIfNull(description),
+        startTime: Value(startTime),
+        endTime: Value.absentIfNull(endTime),
+        location: Value.absentIfNull(location),
+        isAllDay: Value(isAllDay),
+        color: Value(color),
       ),
     );
   }

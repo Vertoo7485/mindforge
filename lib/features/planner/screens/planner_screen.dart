@@ -18,7 +18,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
   final _quickAddController = TextEditingController();
   Set<int> _activeHabitIds = {};
 
-  final List<String> _habitIcons = [
+  final _habitIcons = [
     '🏃',
     '💪',
     '📚',
@@ -36,6 +36,13 @@ class _PlannerScreenState extends State<PlannerScreen> {
     '⏰',
     '🔄',
   ];
+  final _eventColors = {
+    'blue': Colors.blueAccent,
+    'red': Colors.redAccent,
+    'green': Colors.greenAccent,
+    'orange': Colors.orangeAccent,
+    'purple': Colors.purpleAccent,
+  };
 
   @override
   void initState() {
@@ -50,29 +57,29 @@ class _PlannerScreenState extends State<PlannerScreen> {
   }
 
   Future<void> _loadData() async {
-    final tasks = await plannerDatabase.getTasksForDate(_selectedDate);
-    final habits = await plannerDatabase.getAllHabits();
-    final events = await plannerDatabase.getEventsForDate(_selectedDate);
-    final activeIds = <int>{};
-    for (final h in habits) {
-      if (await _isHabitActiveOnDate(h, _selectedDate)) activeIds.add(h.id);
+    final t = await plannerDatabase.getTasksForDate(_selectedDate);
+    final h = await plannerDatabase.getAllHabits();
+    final e = await plannerDatabase.getEventsForDate(_selectedDate);
+    final ids = <int>{};
+    for (final x in h) {
+      if (await _isHabitActiveOnDate(x, _selectedDate)) ids.add(x.id);
     }
     setState(() {
-      _tasks = tasks;
-      _habits = habits;
-      _events = events;
-      _activeHabitIds = activeIds;
+      _tasks = t;
+      _habits = h;
+      _events = e;
+      _activeHabitIds = ids;
     });
   }
 
   Future<void> _addTask() async {
     final tc = TextEditingController();
-    String priority = 'medium';
-    String? recurrence;
-    final result = await showDialog<Map<String, dynamic>>(
+    String p = 'medium';
+    String? r;
+    final res = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, sd) => AlertDialog(
+      builder: (c) => StatefulBuilder(
+        builder: (c, sd) => AlertDialog(
           title: const Text('Новая задача'),
           content: SingleChildScrollView(
             child: Column(
@@ -90,20 +97,20 @@ class _PlannerScreenState extends State<PlannerScreen> {
                     _PriorityChip(
                       label: 'Низкий',
                       color: Colors.greenAccent,
-                      selected: priority == 'low',
-                      onTap: () => sd(() => priority = 'low'),
+                      selected: p == 'low',
+                      onTap: () => sd(() => p = 'low'),
                     ),
                     _PriorityChip(
                       label: 'Средний',
                       color: Colors.orangeAccent,
-                      selected: priority == 'medium',
-                      onTap: () => sd(() => priority = 'medium'),
+                      selected: p == 'medium',
+                      onTap: () => sd(() => p = 'medium'),
                     ),
                     _PriorityChip(
                       label: 'Высокий',
                       color: Colors.redAccent,
-                      selected: priority == 'high',
-                      onTap: () => sd(() => priority = 'high'),
+                      selected: p == 'high',
+                      onTap: () => sd(() => p = 'high'),
                     ),
                   ],
                 ),
@@ -114,23 +121,23 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   children: [
                     _RecurrenceChip(
                       label: 'Нет',
-                      selected: recurrence == null,
-                      onTap: () => sd(() => recurrence = null),
+                      selected: r == null,
+                      onTap: () => sd(() => r = null),
                     ),
                     _RecurrenceChip(
                       label: 'Ежедневно',
-                      selected: recurrence == 'daily',
-                      onTap: () => sd(() => recurrence = 'daily'),
+                      selected: r == 'daily',
+                      onTap: () => sd(() => r = 'daily'),
                     ),
                     _RecurrenceChip(
                       label: 'Еженедельно',
-                      selected: recurrence == 'weekly',
-                      onTap: () => sd(() => recurrence = 'weekly'),
+                      selected: r == 'weekly',
+                      onTap: () => sd(() => r = 'weekly'),
                     ),
                     _RecurrenceChip(
                       label: 'Будни',
-                      selected: recurrence == 'weekdays',
-                      onTap: () => sd(() => recurrence = 'weekdays'),
+                      selected: r == 'weekdays',
+                      onTap: () => sd(() => r = 'weekdays'),
                     ),
                   ],
                 ),
@@ -139,16 +146,16 @@ class _PlannerScreenState extends State<PlannerScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(c),
               child: const Text('Отмена'),
             ),
             FilledButton(
               onPressed: () {
                 if (tc.text.trim().isNotEmpty)
-                  Navigator.pop(context, {
+                  Navigator.pop(c, {
                     'title': tc.text.trim(),
-                    'priority': priority,
-                    'recurrence': recurrence,
+                    'priority': p,
+                    'recurrence': r,
                   });
               },
               child: const Text('Добавить'),
@@ -157,12 +164,12 @@ class _PlannerScreenState extends State<PlannerScreen> {
         ),
       ),
     );
-    if (result != null) {
+    if (res != null) {
       await plannerDatabase.addTask(
-        title: result['title'],
-        priority: result['priority'],
+        title: res['title'],
+        priority: res['priority'],
         dueDate: _selectedDate,
-        recurrence: result['recurrence'],
+        recurrence: res['recurrence'],
       );
       _loadData();
     }
@@ -180,23 +187,23 @@ class _PlannerScreenState extends State<PlannerScreen> {
     _loadData();
   }
 
-  Future<void> _openSubtasks(Task task) async {
+  Future<void> _openSubtasks(Task t) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => SubtasksScreen(task: task)),
+      MaterialPageRoute(builder: (_) => SubtasksScreen(task: t)),
     );
     _loadData();
   }
 
   Future<void> _addHabit() async {
     final nc = TextEditingController();
-    String icon = '🔄', frequency = 'daily';
-    int targetCount = 1;
-    Set<int> customDays = {1, 2, 3, 4, 5};
-    final result = await showDialog<Map<String, dynamic>>(
+    String i = '🔄', f = 'daily';
+    int tc = 1;
+    Set<int> cd = {1, 2, 3, 4, 5};
+    final res = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, sd) => AlertDialog(
+      builder: (c) => StatefulBuilder(
+        builder: (c, sd) => AlertDialog(
           title: const Text('Новая привычка'),
           content: SingleChildScrollView(
             child: Column(
@@ -204,9 +211,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
               children: [
                 TextField(
                   controller: nc,
-                  decoration: const InputDecoration(
-                    labelText: 'Название привычки',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Название'),
                   autofocus: true,
                 ),
                 const SizedBox(height: 16),
@@ -215,22 +220,22 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 Wrap(
                   spacing: 8,
                   children: _habitIcons.map((e) {
-                    final s = icon == e;
+                    final s = i == e;
                     return GestureDetector(
-                      onTap: () => sd(() => icon = e),
+                      onTap: () => sd(() => i = e),
                       child: Container(
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
                           color: s
                               ? Theme.of(
-                                  context,
+                                  c,
                                 ).colorScheme.primary.withValues(alpha: 0.2)
                               : Colors.grey[800],
                           borderRadius: BorderRadius.circular(10),
                           border: s
                               ? Border.all(
-                                  color: Theme.of(context).colorScheme.primary,
+                                  color: Theme.of(c).colorScheme.primary,
                                 )
                               : null,
                         ),
@@ -249,41 +254,41 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   children: [
                     _FrequencyChip(
                       label: 'Ежедневно',
-                      selected: frequency == 'daily',
+                      selected: f == 'daily',
                       onTap: () => sd(() {
-                        frequency = 'daily';
-                        targetCount = 1;
+                        f = 'daily';
+                        tc = 1;
                       }),
                     ),
                     _FrequencyChip(
                       label: 'По будням',
-                      selected: frequency == 'weekdays',
+                      selected: f == 'weekdays',
                       onTap: () => sd(() {
-                        frequency = 'weekdays';
-                        targetCount = 1;
+                        f = 'weekdays';
+                        tc = 1;
                       }),
                     ),
                     _FrequencyChip(
                       label: 'По выходным',
-                      selected: frequency == 'weekends',
+                      selected: f == 'weekends',
                       onTap: () => sd(() {
-                        frequency = 'weekends';
-                        targetCount = 1;
+                        f = 'weekends';
+                        tc = 1;
                       }),
                     ),
                     _FrequencyChip(
                       label: 'Свой график',
-                      selected: frequency == 'custom',
+                      selected: f == 'custom',
                       onTap: () => sd(() {
-                        frequency = 'custom';
+                        f = 'custom';
                       }),
                     ),
                   ],
                 ),
-                if (frequency == 'custom') ...[
+                if (f == 'custom') ...[
                   const SizedBox(height: 12),
                   const Text(
-                    'Выберите дни недели:',
+                    'Выберите дни:',
                     style: TextStyle(color: Colors.grey),
                   ),
                   const SizedBox(height: 8),
@@ -294,17 +299,17 @@ class _PlannerScreenState extends State<PlannerScreen> {
                         .entries
                         .map((e) {
                           final d = e.key + 1;
-                          final sel = customDays.contains(d);
+                          final sel = cd.contains(d);
                           return _DayChip(
                             label: e.value,
                             selected: sel,
                             onTap: () {
                               sd(() {
                                 if (sel)
-                                  customDays.remove(d);
+                                  cd.remove(d);
                                 else
-                                  customDays.add(d);
-                                targetCount = customDays.length;
+                                  cd.add(d);
+                                tc = cd.length;
                               });
                             },
                           );
@@ -313,7 +318,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Выбрано дней: $targetCount',
+                    'Выбрано: $tc',
                     style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                   ),
                 ],
@@ -322,20 +327,18 @@ class _PlannerScreenState extends State<PlannerScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(c),
               child: const Text('Отмена'),
             ),
             FilledButton(
               onPressed: () {
                 if (nc.text.trim().isNotEmpty)
-                  Navigator.pop(context, {
+                  Navigator.pop(c, {
                     'name': nc.text.trim(),
-                    'icon': icon,
-                    'frequency': frequency,
-                    'targetCount': targetCount,
-                    'customDays': frequency == 'custom'
-                        ? customDays.toList()
-                        : null,
+                    'icon': i,
+                    'frequency': f,
+                    'targetCount': tc,
+                    'customDays': f == 'custom' ? cd.toList() : null,
                   });
               },
               child: const Text('Добавить'),
@@ -344,48 +347,63 @@ class _PlannerScreenState extends State<PlannerScreen> {
         ),
       ),
     );
-    if (result != null) {
+    if (res != null) {
       final hid = await plannerDatabase.addHabit(
-        name: result['name'],
-        icon: result['icon'],
-        frequency: result['frequency'],
-        targetCount: result['targetCount'],
+        name: res['name'],
+        icon: res['icon'],
+        frequency: res['frequency'],
+        targetCount: res['targetCount'],
       );
-      if (result['frequency'] == 'custom' && result['customDays'] != null) {
+      if (res['frequency'] == 'custom' && res['customDays'] != null) {
         await HabitDaysService.setDays(
           hid,
-          (result['customDays'] as List).map((e) => e as int).toSet(),
+          (res['customDays'] as List).map((e) => e as int).toSet(),
         );
       }
       _loadData();
     }
   }
 
-  Future<bool> _isHabitActiveOnDate(Habit habit, DateTime date) async {
-    final wd = date.weekday;
-    switch (habit.frequency) {
+  Future<bool> _isHabitActiveOnDate(Habit h, DateTime d) async {
+    final w = d.weekday;
+    switch (h.frequency) {
       case 'daily':
         return true;
       case 'weekdays':
-        return wd != 6 && wd != 7;
+        return w != 6 && w != 7;
       case 'weekends':
-        return wd == 6 || wd == 7;
+        return w == 6 || w == 7;
       case 'custom':
-        return (await HabitDaysService.getDays(habit.id)).contains(wd);
+        return (await HabitDaysService.getDays(h.id)).contains(w);
       default:
         return true;
     }
   }
 
-  Future<void> _addEvent() async {
-    final tc = TextEditingController(), lc = TextEditingController();
-    TimeOfDay st = TimeOfDay.now();
-    bool allDay = false;
+  Future<void> _addOrEditEvent({Event? existing}) async {
+    final tc = TextEditingController(text: existing?.title ?? '');
+    final lc = TextEditingController(text: existing?.location ?? '');
+    TimeOfDay st = existing != null && !existing.isAllDay
+        ? TimeOfDay(
+            hour: existing.startTime.hour,
+            minute: existing.startTime.minute,
+          )
+        : TimeOfDay.now();
+    TimeOfDay? et = existing?.endTime != null
+        ? TimeOfDay(
+            hour: existing!.endTime!.hour,
+            minute: existing.endTime!.minute,
+          )
+        : null;
+    bool allDay = existing?.isAllDay ?? false;
+    String color = existing?.color ?? 'blue';
+    bool hasEndTime = existing?.endTime != null;
+
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, sd) => AlertDialog(
-          title: const Text('Новая встреча'),
+          title: Text(existing != null ? 'Редактировать' : 'Новая встреча'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -393,7 +411,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 TextField(
                   controller: tc,
                   decoration: const InputDecoration(labelText: 'Название'),
-                  autofocus: true,
+                  autofocus: existing == null,
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -410,9 +428,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   onChanged: (v) => sd(() => allDay = v),
                   contentPadding: EdgeInsets.zero,
                 ),
-                if (!allDay)
+                if (!allDay) ...[
                   ListTile(
-                    title: const Text('Время'),
+                    title: const Text('Начало'),
                     subtitle: Text(st.format(context)),
                     trailing: const Icon(Icons.access_time),
                     onTap: () async {
@@ -423,6 +441,60 @@ class _PlannerScreenState extends State<PlannerScreen> {
                       if (p != null) sd(() => st = p);
                     },
                   ),
+                  SwitchListTile(
+                    title: const Text('Время окончания'),
+                    value: hasEndTime,
+                    onChanged: (v) {
+                      sd(() {
+                        hasEndTime = v;
+                        if (v && et == null)
+                          et = TimeOfDay(hour: st.hour + 1, minute: st.minute);
+                        if (!v) et = null;
+                      });
+                    },
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  if (hasEndTime)
+                    ListTile(
+                      title: const Text('Окончание'),
+                      subtitle: Text(et!.format(context)),
+                      trailing: const Icon(Icons.access_time),
+                      onTap: () async {
+                        final p = await showTimePicker(
+                          context: context,
+                          initialTime: et!,
+                        );
+                        if (p != null) sd(() => et = p);
+                      },
+                    ),
+                ],
+                const SizedBox(height: 12),
+                const Text('Цвет', style: TextStyle(color: Colors.grey)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: _eventColors.entries
+                      .map(
+                        (e) => GestureDetector(
+                          onTap: () => sd(() => color = e.key),
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: e.value,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: color == e.key
+                                    ? Colors.white
+                                    : Colors.transparent,
+                                width: 3,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
               ],
             ),
           ),
@@ -439,14 +511,17 @@ class _PlannerScreenState extends State<PlannerScreen> {
                     'location': lc.text.trim().isEmpty ? null : lc.text.trim(),
                     'isAllDay': allDay,
                     'startTime': st,
+                    'endTime': hasEndTime ? et : null,
+                    'color': color,
                   });
               },
-              child: const Text('Добавить'),
+              child: Text(existing != null ? 'Сохранить' : 'Добавить'),
             ),
           ],
         ),
       ),
     );
+
     if (result != null) {
       final sdt = DateTime(
         _selectedDate.year,
@@ -455,12 +530,35 @@ class _PlannerScreenState extends State<PlannerScreen> {
         result['isAllDay'] ? 0 : (result['startTime'] as TimeOfDay).hour,
         result['isAllDay'] ? 0 : (result['startTime'] as TimeOfDay).minute,
       );
-      await plannerDatabase.addEvent(
-        title: result['title'],
-        location: result['location'],
-        startTime: sdt,
-        isAllDay: result['isAllDay'],
-      );
+      final edt = result['endTime'] != null
+          ? DateTime(
+              _selectedDate.year,
+              _selectedDate.month,
+              _selectedDate.day,
+              (result['endTime'] as TimeOfDay).hour,
+              (result['endTime'] as TimeOfDay).minute,
+            )
+          : null;
+      if (existing != null) {
+        await plannerDatabase.updateEvent(
+          id: existing.id,
+          title: result['title'],
+          location: result['location'],
+          startTime: sdt,
+          endTime: edt,
+          isAllDay: result['isAllDay'],
+          color: result['color'],
+        );
+      } else {
+        await plannerDatabase.addEvent(
+          title: result['title'],
+          location: result['location'],
+          startTime: sdt,
+          endTime: edt,
+          isAllDay: result['isAllDay'],
+          color: result['color'],
+        );
+      }
       _loadData();
     }
   }
@@ -521,10 +619,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
           if (_tasks.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text(
-                'Нет задач на этот день',
-                style: TextStyle(color: Colors.grey),
-              ),
+              child: Text('Нет задач', style: TextStyle(color: Colors.grey)),
             )
           else
             ..._tasks.map(
@@ -647,7 +742,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
               IconButton(
                 icon: const Icon(Icons.add_circle_outline),
                 tooltip: 'Добавить встречу',
-                onPressed: _addEvent,
+                onPressed: () => _addOrEditEvent(),
               ),
             ],
           ),
@@ -660,10 +755,12 @@ class _PlannerScreenState extends State<PlannerScreen> {
             ..._events.map(
               (e) => _EventCard(
                 event: e,
+                onTap: () => _addOrEditEvent(existing: e),
                 onDelete: () async {
                   await plannerDatabase.deleteEvent(e.id);
                   _loadData();
                 },
+                colors: _eventColors,
               ),
             ),
           const SizedBox(height: 80),
@@ -718,9 +815,8 @@ class SubtasksScreen extends StatefulWidget {
 }
 
 class _SubtasksScreenState extends State<SubtasksScreen> {
-  List<Subtask> _subtasks = [];
-  final _controller = TextEditingController();
-
+  List<Subtask> _s = [];
+  final _c = TextEditingController();
   @override
   void initState() {
     super.initState();
@@ -728,32 +824,32 @@ class _SubtasksScreenState extends State<SubtasksScreen> {
   }
 
   Future<void> _load() async {
-    _subtasks = await plannerDatabase.getSubtasks(widget.task.id);
+    _s = await plannerDatabase.getSubtasks(widget.task.id);
     setState(() {});
   }
 
   Future<void> _add() async {
-    final t = _controller.text.trim();
+    final t = _c.text.trim();
     if (t.isEmpty) return;
     await plannerDatabase.addSubtask(taskId: widget.task.id, title: t);
-    _controller.clear();
+    _c.clear();
     _load();
   }
 
   @override
-  Widget build(BuildContext context) {
-    final done = _subtasks.where((s) => s.isCompleted).length;
+  Widget build(BuildContext c) {
+    final d = _s.where((s) => s.isCompleted).length;
     return Scaffold(
       appBar: AppBar(title: Text(widget.task.title)),
       body: Column(
         children: [
-          if (_subtasks.isNotEmpty)
+          if (_s.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: _DayProgress(completed: done, total: _subtasks.length),
+              child: _DayProgress(completed: d, total: _s.length),
             ),
           Expanded(
-            child: _subtasks.isEmpty
+            child: _s.isEmpty
                 ? const Center(
                     child: Text(
                       'Нет подзадач',
@@ -761,9 +857,9 @@ class _SubtasksScreenState extends State<SubtasksScreen> {
                     ),
                   )
                 : ListView.builder(
-                    itemCount: _subtasks.length,
+                    itemCount: _s.length,
                     itemBuilder: (_, i) {
-                      final s = _subtasks[i];
+                      final s = _s[i];
                       return ListTile(
                         leading: GestureDetector(
                           onTap: () async {
@@ -810,7 +906,7 @@ class _SubtasksScreenState extends State<SubtasksScreen> {
                 children: [
                   Expanded(
                     child: TextField(
-                      controller: _controller,
+                      controller: _c,
                       decoration: InputDecoration(
                         hintText: 'Новая подзадача...',
                         border: OutlineInputBorder(
@@ -838,20 +934,18 @@ class _SubtasksScreenState extends State<SubtasksScreen> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    _c.dispose();
     super.dispose();
   }
 }
-
-// ======== ВИДЖЕТЫ ========
 
 class _DayProgress extends StatelessWidget {
   final int completed, total;
   const _DayProgress({required this.completed, required this.total});
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext c) {
     final p = total > 0 ? completed / total : 0.0;
-    final c = p == 1.0
+    final cl = p == 1.0
         ? Colors.greenAccent
         : p > 0.5
         ? Colors.orangeAccent
@@ -859,9 +953,9 @@ class _DayProgress extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.1),
+        color: cl.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: c.withValues(alpha: 0.3)),
+        border: Border.all(color: cl.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -875,7 +969,7 @@ class _DayProgress extends StatelessWidget {
               ),
               Text(
                 '$completed из $total',
-                style: TextStyle(fontWeight: FontWeight.bold, color: c),
+                style: TextStyle(fontWeight: FontWeight.bold, color: cl),
               ),
             ],
           ),
@@ -886,7 +980,7 @@ class _DayProgress extends StatelessWidget {
               value: p,
               minHeight: 10,
               backgroundColor: Colors.grey[800],
-              valueColor: AlwaysStoppedAnimation(c),
+              valueColor: AlwaysStoppedAnimation(cl),
             ),
           ),
           if (p == 1.0)
@@ -905,8 +999,7 @@ class _DayProgress extends StatelessWidget {
 
 class _TaskCard extends StatelessWidget {
   final Task task;
-  final VoidCallback onToggle;
-  final VoidCallback onOpenSubtasks;
+  final VoidCallback onToggle, onOpenSubtasks;
   final Function(DateTime) onRescheduleToDate;
   const _TaskCard({
     required this.task,
@@ -915,7 +1008,7 @@ class _TaskCard extends StatelessWidget {
     required this.onRescheduleToDate,
   });
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext c) {
     final pc = switch (task.priority) {
       'high' => Colors.redAccent,
       'medium' => Colors.orangeAccent,
@@ -925,7 +1018,7 @@ class _TaskCard extends StatelessWidget {
       child: InkWell(
         onTap: onOpenSubtasks,
         onLongPress: () => showModalBottomSheet(
-          context: context,
+          context: c,
           builder: (_) => SafeArea(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -934,17 +1027,17 @@ class _TaskCard extends StatelessWidget {
                   leading: const Icon(Icons.checklist),
                   title: const Text('Подзадачи'),
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(c);
                     onOpenSubtasks();
                   },
                 ),
                 ListTile(
                   leading: const Icon(Icons.edit_calendar),
-                  title: const Text('Перенести на другую дату'),
+                  title: const Text('Перенести'),
                   onTap: () async {
-                    Navigator.pop(context);
+                    Navigator.pop(c);
                     final p = await showDatePicker(
-                      context: context,
+                      context: c,
                       initialDate: task.dueDate ?? DateTime.now(),
                       firstDate: DateTime.now(),
                       lastDate: DateTime(2100),
@@ -997,8 +1090,7 @@ class _TaskCard extends StatelessWidget {
 class _HabitCard extends StatefulWidget {
   final Habit habit;
   final DateTime selectedDate;
-  final VoidCallback onTap;
-  final VoidCallback onDelete;
+  final VoidCallback onTap, onDelete;
   const _HabitCard({
     required this.habit,
     required this.selectedDate,
@@ -1010,17 +1102,16 @@ class _HabitCard extends StatefulWidget {
 }
 
 class _HabitCardState extends State<_HabitCard> {
-  bool _isDone = false;
-  int _streak = 0;
-  final _weekProgressKey = GlobalKey<_WeekProgressState>();
-
+  bool _d = false;
+  int _s = 0;
+  final _wpk = GlobalKey<_WeekProgressState>();
   @override
   void initState() {
     super.initState();
-    _loadStatus();
+    _load();
   }
 
-  Future<void> _loadStatus() async {
+  Future<void> _load() async {
     final d = await plannerDatabase.isHabitDoneForDate(
       widget.habit.id,
       widget.selectedDate,
@@ -1031,23 +1122,21 @@ class _HabitCardState extends State<_HabitCard> {
     );
     if (mounted)
       setState(() {
-        _isDone = d;
-        _streak = s;
+        _d = d;
+        _s = s;
       });
-    _weekProgressKey.currentState?.reload();
+    _wpk.currentState?.reload();
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext c) {
     String sub;
     if (widget.habit.frequency == 'custom') {
-      sub = _streak >= widget.habit.targetCount
+      sub = _s >= widget.habit.targetCount
           ? '✅ ${widget.habit.targetCount}/${widget.habit.targetCount} на этой неделе'
-          : '$_streak/${widget.habit.targetCount} на этой неделе';
+          : '$_s/${widget.habit.targetCount} на этой неделе';
     } else {
-      sub = _streak > 0
-          ? '🔥 $_streak ${_daysWord(_streak)} подряд'
-          : 'Начните сегодня';
+      sub = _s > 0 ? '🔥 $_s ${_dw(_s)} подряд' : 'Начните сегодня';
     }
     return Card(
       child: Padding(
@@ -1060,13 +1149,13 @@ class _HabitCardState extends State<_HabitCard> {
                 GestureDetector(
                   onTap: () {
                     widget.onTap();
-                    _loadStatus();
+                    _load();
                   },
                   child: Container(
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: _isDone
+                      color: _d
                           ? Colors.greenAccent.withValues(alpha: 0.2)
                           : Colors.grey.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
@@ -1076,7 +1165,7 @@ class _HabitCardState extends State<_HabitCard> {
                         widget.habit.icon,
                         style: TextStyle(
                           fontSize: 20,
-                          color: _isDone ? Colors.greenAccent : Colors.grey,
+                          color: _d ? Colors.greenAccent : Colors.grey,
                         ),
                       ),
                     ),
@@ -1092,7 +1181,7 @@ class _HabitCardState extends State<_HabitCard> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: _isDone ? Colors.greenAccent : null,
+                          color: _d ? Colors.greenAccent : null,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -1100,9 +1189,7 @@ class _HabitCardState extends State<_HabitCard> {
                         sub,
                         style: TextStyle(
                           fontSize: 12,
-                          color: _streak > 0
-                              ? Colors.orangeAccent
-                              : Colors.grey,
+                          color: _s > 0 ? Colors.orangeAccent : Colors.grey,
                         ),
                       ),
                     ],
@@ -1117,7 +1204,7 @@ class _HabitCardState extends State<_HabitCard> {
             ),
             const SizedBox(height: 8),
             _WeekProgress(
-              key: _weekProgressKey,
+              key: _wpk,
               habitId: widget.habit.id,
               selectedDate: widget.selectedDate,
             ),
@@ -1127,7 +1214,7 @@ class _HabitCardState extends State<_HabitCard> {
     );
   }
 
-  String _daysWord(int n) {
+  String _dw(int n) {
     if (n % 10 == 1 && n % 100 != 11) return 'день';
     if ([2, 3, 4].contains(n % 10) && ![12, 13, 14].contains(n % 100))
       return 'дня';
@@ -1148,8 +1235,7 @@ class _WeekProgress extends StatefulWidget {
 }
 
 class _WeekProgressState extends State<_WeekProgress> {
-  Set<DateTime> _completions = {};
-
+  Set<DateTime> _c = {};
   @override
   void initState() {
     super.initState();
@@ -1161,7 +1247,7 @@ class _WeekProgressState extends State<_WeekProgress> {
       widget.habitId,
       widget.selectedDate,
     );
-    if (mounted) setState(() => _completions = c);
+    if (mounted) setState(() => _c = c);
   }
 
   void reload() {
@@ -1169,7 +1255,7 @@ class _WeekProgressState extends State<_WeekProgress> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext c) {
     final ws = DateTime(
       widget.selectedDate.year,
       widget.selectedDate.month,
@@ -1180,8 +1266,8 @@ class _WeekProgressState extends State<_WeekProgress> {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: List.generate(7, (i) {
         final day = ws.add(Duration(days: i));
-        final done = _completions.any(
-          (c) => c.year == day.year && c.month == day.month && c.day == day.day,
+        final done = _c.any(
+          (x) => x.year == day.year && x.month == day.month && x.day == day.day,
         );
         final today =
             day.year == widget.selectedDate.year &&
@@ -1224,47 +1310,77 @@ class _WeekProgressState extends State<_WeekProgress> {
 
 class _EventCard extends StatelessWidget {
   final Event event;
+  final VoidCallback onTap;
   final VoidCallback onDelete;
-  const _EventCard({required this.event, required this.onDelete});
+  final Map<String, Color> colors;
+  const _EventCard({
+    required this.event,
+    required this.onTap,
+    required this.onDelete,
+    required this.colors,
+  });
   @override
   Widget build(BuildContext context) {
-    final ts = event.isAllDay
+    final color = colors[event.color] ?? Colors.blueAccent;
+    final timeStr = event.isAllDay
         ? 'Весь день'
-        : '${event.startTime.hour}:${event.startTime.minute.toString().padLeft(2, '0')}';
+        : '${event.startTime.hour}:${event.startTime.minute.toString().padLeft(2, '0')}${event.endTime != null ? ' - ${event.endTime!.hour}:${event.endTime!.minute.toString().padLeft(2, '0')}' : ''}';
     return Card(
-      child: ListTile(
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.blueAccent.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Center(
-            child: Icon(Icons.event, color: Colors.blueAccent),
-          ),
-        ),
-        title: Text(event.title),
-        subtitle: Row(
+      child: InkWell(
+        onTap: onTap,
+        child: Row(
           children: [
-            Text(ts),
-            if (event.location != null) ...[
-              const Text(' · '),
-              Icon(Icons.location_on, size: 14, color: Colors.grey[500]),
-              const SizedBox(width: 2),
-              Flexible(
-                child: Text(
-                  event.location!,
-                  style: TextStyle(color: Colors.grey[500]),
+            Container(
+              width: 4,
+              height: 60,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  bottomLeft: Radius.circular(12),
                 ),
               ),
-            ],
+            ),
+            Expanded(
+              child: ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Center(child: Icon(Icons.event, color: color)),
+                ),
+                title: Text(event.title),
+                subtitle: Row(
+                  children: [
+                    Text(timeStr),
+                    if (event.location != null) ...[
+                      const Text(' · '),
+                      Icon(
+                        Icons.location_on,
+                        size: 14,
+                        color: Colors.grey[500],
+                      ),
+                      const SizedBox(width: 2),
+                      Flexible(
+                        child: Text(
+                          event.location!,
+                          style: TextStyle(color: Colors.grey[500]),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                  color: Colors.grey,
+                  onPressed: onDelete,
+                ),
+              ),
+            ),
           ],
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.delete_outline, size: 20),
-          color: Colors.grey,
-          onPressed: onDelete,
         ),
       ),
     );
@@ -1283,7 +1399,7 @@ class _PriorityChip extends StatelessWidget {
     required this.onTap,
   });
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext c) => Padding(
     padding: const EdgeInsets.only(right: 4),
     child: FilterChip(
       label: Text(label, style: const TextStyle(fontSize: 12)),
@@ -1305,15 +1421,13 @@ class _RecurrenceChip extends StatelessWidget {
     required this.onTap,
   });
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext c) => Padding(
     padding: const EdgeInsets.only(right: 4),
     child: FilterChip(
       label: Text(label, style: const TextStyle(fontSize: 12)),
       selected: selected,
-      selectedColor: Theme.of(
-        context,
-      ).colorScheme.primary.withValues(alpha: 0.3),
-      checkmarkColor: Theme.of(context).colorScheme.primary,
+      selectedColor: Theme.of(c).colorScheme.primary.withValues(alpha: 0.3),
+      checkmarkColor: Theme.of(c).colorScheme.primary,
       onSelected: (_) => onTap(),
     ),
   );
@@ -1329,15 +1443,13 @@ class _FrequencyChip extends StatelessWidget {
     required this.onTap,
   });
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext c) => Padding(
     padding: const EdgeInsets.only(right: 4, bottom: 4),
     child: FilterChip(
       label: Text(label, style: const TextStyle(fontSize: 12)),
       selected: selected,
-      selectedColor: Theme.of(
-        context,
-      ).colorScheme.primary.withValues(alpha: 0.3),
-      checkmarkColor: Theme.of(context).colorScheme.primary,
+      selectedColor: Theme.of(c).colorScheme.primary.withValues(alpha: 0.3),
+      checkmarkColor: Theme.of(c).colorScheme.primary,
       onSelected: (_) => onTap(),
     ),
   );
@@ -1353,15 +1465,13 @@ class _DayChip extends StatelessWidget {
     required this.onTap,
   });
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext c) => Padding(
     padding: const EdgeInsets.only(right: 4, bottom: 4),
     child: FilterChip(
       label: Text(label, style: const TextStyle(fontSize: 12)),
       selected: selected,
-      selectedColor: Theme.of(
-        context,
-      ).colorScheme.primary.withValues(alpha: 0.3),
-      checkmarkColor: Theme.of(context).colorScheme.primary,
+      selectedColor: Theme.of(c).colorScheme.primary.withValues(alpha: 0.3),
+      checkmarkColor: Theme.of(c).colorScheme.primary,
       onSelected: (_) => onTap(),
     ),
   );
