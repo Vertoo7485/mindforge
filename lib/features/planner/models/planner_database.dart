@@ -91,14 +91,14 @@ class PlannerDatabase extends _$PlannerDatabase {
   }
 
   Future<List<Task>> getTasksForDate(DateTime date) async {
-    final startOfDay = DateTime(date.year, date.month, date.day);
-    final endOfDay = startOfDay.add(const Duration(days: 1));
-    await _generateRecurringTasksForDate(startOfDay);
+    final s = DateTime(date.year, date.month, date.day);
+    final e = s.add(const Duration(days: 1));
+    await _generateRecurringTasksForDate(s);
     return (select(tasks)
           ..where(
             (t) =>
-                t.dueDate.isBiggerOrEqualValue(startOfDay) &
-                t.dueDate.isSmallerThanValue(endOfDay),
+                t.dueDate.isBiggerOrEqualValue(s) &
+                t.dueDate.isSmallerThanValue(e),
           )
           ..orderBy([
             (t) => OrderingTerm.asc(t.isCompleted),
@@ -135,7 +135,7 @@ class PlannerDatabase extends _$PlannerDatabase {
     }
     await toggleTask(task.id, true);
     if (task.recurrence != null && task.dueDate != null) {
-      DateTime nextDate = task.dueDate!;
+      DateTime next = task.dueDate!;
       final today = DateTime(
         DateTime.now().year,
         DateTime.now().month,
@@ -143,30 +143,30 @@ class PlannerDatabase extends _$PlannerDatabase {
       );
       switch (task.recurrence) {
         case 'daily':
-          nextDate = nextDate.add(const Duration(days: 1));
+          next = next.add(const Duration(days: 1));
           break;
         case 'weekly':
-          nextDate = nextDate.add(const Duration(days: 7));
+          next = next.add(const Duration(days: 7));
           break;
         case 'weekdays':
           do {
-            nextDate = nextDate.add(const Duration(days: 1));
-          } while (nextDate.weekday == 6 || nextDate.weekday == 7);
+            next = next.add(const Duration(days: 1));
+          } while (next.weekday == 6 || next.weekday == 7);
           break;
         case 'weekends':
           do {
-            nextDate = nextDate.add(const Duration(days: 1));
-          } while (nextDate.weekday != 6 && nextDate.weekday != 7);
+            next = next.add(const Duration(days: 1));
+          } while (next.weekday != 6 && next.weekday != 7);
           break;
         default:
           return;
       }
-      if (nextDate.isAfter(today)) {
+      if (next.isAfter(today)) {
         await addTask(
           title: task.title,
           description: task.description,
           priority: task.priority,
-          dueDate: nextDate,
+          dueDate: next,
           recurrence: task.recurrence,
         );
       }
@@ -203,20 +203,15 @@ class PlannerDatabase extends _$PlannerDatabase {
       SubtasksCompanion(isCompleted: Value(isCompleted)),
     );
 
-    // Если отметили как выполненную — проверяем, все ли подзадачи готовы
+    final sub = await (select(
+      subtasks,
+    )..where((s) => s.id.equals(id))).getSingle();
     if (isCompleted) {
-      final sub = await (select(
-        subtasks,
-      )..where((s) => s.id.equals(id))).getSingle();
-      final allSubtasks = await getSubtasks(sub.taskId);
-      if (allSubtasks.every((s) => s.isCompleted)) {
+      final all = await getSubtasks(sub.taskId);
+      if (all.every((s) => s.isCompleted)) {
         await toggleTask(sub.taskId, true);
       }
     } else {
-      // Если сняли отметку — снимаем и с задачи
-      final sub = await (select(
-        subtasks,
-      )..where((s) => s.id.equals(id))).getSingle();
       final task = await (select(
         tasks,
       )..where((t) => t.id.equals(sub.taskId))).getSingle();
@@ -232,32 +227,31 @@ class PlannerDatabase extends _$PlannerDatabase {
   // ======== ГЕНЕРАЦИЯ ПОВТОРЯЮЩИХСЯ ЗАДАЧ ========
 
   Future<void> _generateRecurringTasksForDate(DateTime date) async {
-    final startOfDay = DateTime(date.year, date.month, date.day);
-    final endOfDay = startOfDay.add(const Duration(days: 1));
-    final allRecurring =
+    final s = DateTime(date.year, date.month, date.day);
+    final e = s.add(const Duration(days: 1));
+    final all =
         await (select(tasks)
               ..where(
                 (t) =>
-                    t.recurrence.isNotNull() &
-                    t.dueDate.isSmallerThanValue(startOfDay),
+                    t.recurrence.isNotNull() & t.dueDate.isSmallerThanValue(s),
               )
               ..orderBy([(t) => OrderingTerm.desc(t.dueDate)]))
             .get();
     final seen = <String>{};
-    for (final task in allRecurring) {
+    for (final task in all) {
       final key = '${task.title}_${task.recurrence}';
       if (seen.contains(key)) continue;
       seen.add(key);
       if (_shouldTaskAppearOnDate(task, date)) {
-        final existing =
+        final ex =
             await (select(tasks)..where(
                   (t) =>
                       t.title.equals(task.title) &
-                      t.dueDate.isBiggerOrEqualValue(startOfDay) &
-                      t.dueDate.isSmallerThanValue(endOfDay),
+                      t.dueDate.isBiggerOrEqualValue(s) &
+                      t.dueDate.isSmallerThanValue(e),
                 ))
                 .get();
-        if (existing.isEmpty) {
+        if (ex.isEmpty) {
           await addTask(
             title: task.title,
             description: task.description,
@@ -272,22 +266,22 @@ class PlannerDatabase extends _$PlannerDatabase {
 
   bool _shouldTaskAppearOnDate(Task task, DateTime date) {
     if (task.dueDate == null || task.recurrence == null) return false;
-    final dueDate = DateTime(
+    final d = DateTime(
       task.dueDate!.year,
       task.dueDate!.month,
       task.dueDate!.day,
     );
-    final checkDate = DateTime(date.year, date.month, date.day);
-    if (checkDate.isBefore(dueDate) || checkDate == dueDate) return false;
+    final c = DateTime(date.year, date.month, date.day);
+    if (c.isBefore(d) || c == d) return false;
     switch (task.recurrence) {
       case 'daily':
         return true;
       case 'weekly':
-        return checkDate.difference(dueDate).inDays % 7 == 0;
+        return c.difference(d).inDays % 7 == 0;
       case 'weekdays':
-        return checkDate.weekday != 6 && checkDate.weekday != 7;
+        return c.weekday != 6 && c.weekday != 7;
       case 'weekends':
-        return checkDate.weekday == 6 || checkDate.weekday == 7;
+        return c.weekday == 6 || c.weekday == 7;
       default:
         return false;
     }
@@ -322,12 +316,11 @@ class PlannerDatabase extends _$PlannerDatabase {
 
   Future<void> toggleHabitForDate(int habitId, DateTime date) async {
     final day = DateTime(date.year, date.month, date.day);
-    final nextDay = day.add(const Duration(days: 1));
     final existing =
         await (select(habitCompletions)..where(
               (h) =>
                   h.habitId.equals(habitId) &
-                  h.date.isBetweenValues(day, nextDay),
+                  h.date.isBetweenValues(day, day.add(const Duration(days: 1))),
             ))
             .get();
     if (existing.isNotEmpty) {
@@ -343,11 +336,10 @@ class PlannerDatabase extends _$PlannerDatabase {
 
   Future<bool> isHabitDoneForDate(int habitId, DateTime date) async {
     final day = DateTime(date.year, date.month, date.day);
-    final nextDay = day.add(const Duration(days: 1));
     return (await (select(habitCompletions)..where(
               (h) =>
                   h.habitId.equals(habitId) &
-                  h.date.isBetweenValues(day, nextDay),
+                  h.date.isBetweenValues(day, day.add(const Duration(days: 1))),
             ))
             .get())
         .isNotEmpty;
@@ -368,15 +360,15 @@ class PlannerDatabase extends _$PlannerDatabase {
         habit.frequency == 'weekdays' ||
         habit.frequency == 'weekends') {
       int streak = 0;
-      DateTime checkDate = DateTime(date.year, date.month, date.day);
+      DateTime check = DateTime(date.year, date.month, date.day);
       for (final c in completions) {
-        final d = DateTime(c.date.year, c.date.month, c.date.day);
-        if (d == checkDate) {
+        final cd = DateTime(c.date.year, c.date.month, c.date.day);
+        if (cd == check) {
           streak++;
-          checkDate = checkDate.subtract(const Duration(days: 1));
-        } else if (d == checkDate.subtract(const Duration(days: 1))) {
+          check = check.subtract(const Duration(days: 1));
+        } else if (cd == check.subtract(const Duration(days: 1))) {
           streak++;
-          checkDate = d.subtract(const Duration(days: 1));
+          check = cd.subtract(const Duration(days: 1));
         } else
           break;
       }
@@ -395,6 +387,26 @@ class PlannerDatabase extends _$PlannerDatabase {
       }).length;
     }
     return 0;
+  }
+
+  Future<Set<DateTime>> getHabitCompletionsForWeek(
+    int habitId,
+    DateTime date,
+  ) async {
+    final ws = DateTime(
+      date.year,
+      date.month,
+      date.day,
+    ).subtract(Duration(days: date.weekday - 1));
+    final we = ws.add(const Duration(days: 7));
+    final result =
+        await (select(habitCompletions)..where(
+              (h) => h.habitId.equals(habitId) & h.date.isBetweenValues(ws, we),
+            ))
+            .get();
+    return result
+        .map((c) => DateTime(c.date.year, c.date.month, c.date.day))
+        .toSet();
   }
 
   // ======== ВСТРЕЧИ ========
