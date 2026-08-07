@@ -18,6 +18,14 @@ class Tasks extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
+class Subtasks extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get taskId => integer()();
+  TextColumn get title => text()();
+  BoolColumn get isCompleted => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
 class Habits extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
@@ -46,12 +54,23 @@ class Events extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
-@DriftDatabase(tables: [Tasks, Habits, HabitCompletions, Events])
+@DriftDatabase(tables: [Tasks, Subtasks, Habits, HabitCompletions, Events])
 class PlannerDatabase extends _$PlannerDatabase {
   PlannerDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.createTable(subtasks);
+      }
+    },
+  );
+
+  // ======== ЗАДАЧИ ========
 
   Future<void> addTask({
     required String title,
@@ -88,13 +107,12 @@ class PlannerDatabase extends _$PlannerDatabase {
         .get();
   }
 
-  Future<List<Task>> getAllTasks() {
-    return (select(tasks)..orderBy([
-          (t) => OrderingTerm.asc(t.isCompleted),
-          (t) => OrderingTerm.desc(t.createdAt),
-        ]))
-        .get();
-  }
+  Future<List<Task>> getAllTasks() =>
+      (select(tasks)..orderBy([
+            (t) => OrderingTerm.asc(t.isCompleted),
+            (t) => OrderingTerm.desc(t.createdAt),
+          ]))
+          .get();
 
   Future<void> toggleTask(int id, bool isCompleted) async {
     await (update(tasks)..where((t) => t.id.equals(id))).write(
@@ -106,6 +124,7 @@ class PlannerDatabase extends _$PlannerDatabase {
   }
 
   Future<void> deleteTask(int id) async {
+    await (delete(subtasks)..where((s) => s.taskId.equals(id))).go();
     await (delete(tasks)..where((t) => t.id.equals(id))).go();
   }
 
@@ -164,6 +183,53 @@ class PlannerDatabase extends _$PlannerDatabase {
     );
     await deleteTask(task.id);
   }
+
+  // ======== ПОДЗАДАЧИ ========
+
+  Future<void> addSubtask({required int taskId, required String title}) async {
+    await into(
+      subtasks,
+    ).insert(SubtasksCompanion(taskId: Value(taskId), title: Value(title)));
+  }
+
+  Future<List<Subtask>> getSubtasks(int taskId) =>
+      (select(subtasks)
+            ..where((s) => s.taskId.equals(taskId))
+            ..orderBy([(s) => OrderingTerm.asc(s.isCompleted)]))
+          .get();
+
+  Future<void> toggleSubtask(int id, bool isCompleted) async {
+    await (update(subtasks)..where((s) => s.id.equals(id))).write(
+      SubtasksCompanion(isCompleted: Value(isCompleted)),
+    );
+
+    // Если отметили как выполненную — проверяем, все ли подзадачи готовы
+    if (isCompleted) {
+      final sub = await (select(
+        subtasks,
+      )..where((s) => s.id.equals(id))).getSingle();
+      final allSubtasks = await getSubtasks(sub.taskId);
+      if (allSubtasks.every((s) => s.isCompleted)) {
+        await toggleTask(sub.taskId, true);
+      }
+    } else {
+      // Если сняли отметку — снимаем и с задачи
+      final sub = await (select(
+        subtasks,
+      )..where((s) => s.id.equals(id))).getSingle();
+      final task = await (select(
+        tasks,
+      )..where((t) => t.id.equals(sub.taskId))).getSingle();
+      if (task.isCompleted) {
+        await toggleTask(sub.taskId, false);
+      }
+    }
+  }
+
+  Future<void> deleteSubtask(int id) async =>
+      await (delete(subtasks)..where((s) => s.id.equals(id))).go();
+
+  // ======== ГЕНЕРАЦИЯ ПОВТОРЯЮЩИХСЯ ЗАДАЧ ========
 
   Future<void> _generateRecurringTasksForDate(DateTime date) async {
     final startOfDay = DateTime(date.year, date.month, date.day);
@@ -278,14 +344,13 @@ class PlannerDatabase extends _$PlannerDatabase {
   Future<bool> isHabitDoneForDate(int habitId, DateTime date) async {
     final day = DateTime(date.year, date.month, date.day);
     final nextDay = day.add(const Duration(days: 1));
-    final result =
-        await (select(habitCompletions)..where(
+    return (await (select(habitCompletions)..where(
               (h) =>
                   h.habitId.equals(habitId) &
                   h.date.isBetweenValues(day, nextDay),
             ))
-            .get();
-    return result.isNotEmpty;
+            .get())
+        .isNotEmpty;
   }
 
   Future<int> getHabitStreakForDate(int habitId, DateTime date) async {
@@ -304,36 +369,29 @@ class PlannerDatabase extends _$PlannerDatabase {
         habit.frequency == 'weekends') {
       int streak = 0;
       DateTime checkDate = DateTime(date.year, date.month, date.day);
-      for (final completion in completions) {
-        final completionDate = DateTime(
-          completion.date.year,
-          completion.date.month,
-          completion.date.day,
-        );
-        if (completionDate == checkDate) {
+      for (final c in completions) {
+        final d = DateTime(c.date.year, c.date.month, c.date.day);
+        if (d == checkDate) {
           streak++;
           checkDate = checkDate.subtract(const Duration(days: 1));
-        } else if (completionDate ==
-            checkDate.subtract(const Duration(days: 1))) {
+        } else if (d == checkDate.subtract(const Duration(days: 1))) {
           streak++;
-          checkDate = completionDate.subtract(const Duration(days: 1));
-        } else {
+          checkDate = d.subtract(const Duration(days: 1));
+        } else
           break;
-        }
       }
       return streak;
     }
     if (habit.frequency == 'custom') {
-      final weekStart = DateTime(
+      final ws = DateTime(
         date.year,
         date.month,
         date.day,
       ).subtract(Duration(days: date.weekday - 1));
-      final weekEnd = weekStart.add(const Duration(days: 7));
       return completions.where((c) {
         final d = DateTime(c.date.year, c.date.month, c.date.day);
-        return d.isAfter(weekStart.subtract(const Duration(days: 1))) &&
-            d.isBefore(weekEnd);
+        return d.isAfter(ws.subtract(const Duration(days: 1))) &&
+            d.isBefore(ws.add(const Duration(days: 7)));
       }).length;
     }
     return 0;
@@ -362,10 +420,12 @@ class PlannerDatabase extends _$PlannerDatabase {
   }
 
   Future<List<Event>> getEventsForDate(DateTime date) {
-    final startOfDay = DateTime(date.year, date.month, date.day);
-    final endOfDay = startOfDay.add(const Duration(days: 1));
+    final s = DateTime(date.year, date.month, date.day);
     return (select(events)
-          ..where((e) => e.startTime.isBetweenValues(startOfDay, endOfDay))
+          ..where(
+            (e) =>
+                e.startTime.isBetweenValues(s, s.add(const Duration(days: 1))),
+          )
           ..orderBy([(e) => OrderingTerm.asc(e.startTime)]))
         .get();
   }
@@ -377,7 +437,8 @@ class PlannerDatabase extends _$PlannerDatabase {
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File('${dbFolder.path}/mindforge_planner.db');
-    return NativeDatabase.createInBackground(file);
+    return NativeDatabase.createInBackground(
+      File('${dbFolder.path}/mindforge_planner.db'),
+    );
   });
 }

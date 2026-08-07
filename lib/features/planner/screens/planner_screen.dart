@@ -181,12 +181,20 @@ class _PlannerScreenState extends State<PlannerScreen> {
     _loadData();
   }
 
+  // Открыть экран подзадач
+  Future<void> _openSubtasks(Task task) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => SubtasksScreen(task: task)),
+    );
+    _loadData();
+  }
+
   Future<void> _addHabit() async {
     final nameController = TextEditingController();
     String icon = '🔄', frequency = 'daily';
     int targetCount = 1;
     Set<int> customDays = {1, 2, 3, 4, 5};
-
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -209,20 +217,20 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 Wrap(
                   spacing: 8,
                   children: _habitIcons.map((e) {
-                    final isSelected = icon == e;
+                    final s = icon == e;
                     return GestureDetector(
                       onTap: () => setDialogState(() => icon = e),
                       child: Container(
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: isSelected
+                          color: s
                               ? Theme.of(
                                   context,
                                 ).colorScheme.primary.withValues(alpha: 0.2)
                               : Colors.grey[800],
                           borderRadius: BorderRadius.circular(10),
-                          border: isSelected
+                          border: s
                               ? Border.all(
                                   color: Theme.of(context).colorScheme.primary,
                                 )
@@ -286,19 +294,18 @@ class _PlannerScreenState extends State<PlannerScreen> {
                     children: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
                         .asMap()
                         .entries
-                        .map((entry) {
-                          final dayIndex = entry.key + 1;
-                          final selected = customDays.contains(dayIndex);
+                        .map((e) {
+                          final d = e.key + 1;
+                          final sel = customDays.contains(d);
                           return _DayChip(
-                            label: entry.value,
-                            selected: selected,
+                            label: e.value,
+                            selected: sel,
                             onTap: () {
                               setDialogState(() {
-                                if (selected) {
-                                  customDays.remove(dayIndex);
-                                } else {
-                                  customDays.add(dayIndex);
-                                }
+                                if (sel)
+                                  customDays.remove(d);
+                                else
+                                  customDays.add(d);
                                 targetCount = customDays.length;
                               });
                             },
@@ -357,27 +364,25 @@ class _PlannerScreenState extends State<PlannerScreen> {
   }
 
   Future<bool> _isHabitActiveOnDate(Habit habit, DateTime date) async {
-    final weekday = date.weekday;
+    final wd = date.weekday;
     switch (habit.frequency) {
       case 'daily':
         return true;
       case 'weekdays':
-        return weekday != 6 && weekday != 7;
+        return wd != 6 && wd != 7;
       case 'weekends':
-        return weekday == 6 || weekday == 7;
+        return wd == 6 || wd == 7;
       case 'custom':
-        final days = await HabitDaysService.getDays(habit.id);
-        return days.contains(weekday);
+        return (await HabitDaysService.getDays(habit.id)).contains(wd);
       default:
         return true;
     }
   }
 
   Future<void> _addEvent() async {
-    final titleController = TextEditingController(),
-        locationController = TextEditingController();
-    TimeOfDay startTime = TimeOfDay.now();
-    bool isAllDay = false;
+    final tC = TextEditingController(), lC = TextEditingController();
+    TimeOfDay st = TimeOfDay.now();
+    bool allDay = false;
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -388,13 +393,13 @@ class _PlannerScreenState extends State<PlannerScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
-                  controller: titleController,
+                  controller: tC,
                   decoration: const InputDecoration(labelText: 'Название'),
                   autofocus: true,
                 ),
                 const SizedBox(height: 12),
                 TextField(
-                  controller: locationController,
+                  controller: lC,
                   decoration: const InputDecoration(
                     labelText: 'Место',
                     hintText: 'Необязательно',
@@ -403,25 +408,23 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 const SizedBox(height: 12),
                 SwitchListTile(
                   title: const Text('Весь день'),
-                  value: isAllDay,
-                  onChanged: (v) => setDialogState(() => isAllDay = v),
+                  value: allDay,
+                  onChanged: (v) => setDialogState(() => allDay = v),
                   contentPadding: EdgeInsets.zero,
                 ),
-                if (!isAllDay) ...[
+                if (!allDay)
                   ListTile(
                     title: const Text('Время'),
-                    subtitle: Text(startTime.format(context)),
+                    subtitle: Text(st.format(context)),
                     trailing: const Icon(Icons.access_time),
                     onTap: () async {
-                      final picked = await showTimePicker(
+                      final p = await showTimePicker(
                         context: context,
-                        initialTime: startTime,
+                        initialTime: st,
                       );
-                      if (picked != null)
-                        setDialogState(() => startTime = picked);
+                      if (p != null) setDialogState(() => st = p);
                     },
                   ),
-                ],
               ],
             ),
           ),
@@ -432,14 +435,12 @@ class _PlannerScreenState extends State<PlannerScreen> {
             ),
             FilledButton(
               onPressed: () {
-                if (titleController.text.trim().isNotEmpty)
+                if (tC.text.trim().isNotEmpty)
                   Navigator.pop(context, {
-                    'title': titleController.text.trim(),
-                    'location': locationController.text.trim().isEmpty
-                        ? null
-                        : locationController.text.trim(),
-                    'isAllDay': isAllDay,
-                    'startTime': startTime,
+                    'title': tC.text.trim(),
+                    'location': lC.text.trim().isEmpty ? null : lC.text.trim(),
+                    'isAllDay': allDay,
+                    'startTime': st,
                   });
               },
               child: const Text('Добавить'),
@@ -449,7 +450,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
       ),
     );
     if (result != null) {
-      final startDateTime = DateTime(
+      final sdt = DateTime(
         _selectedDate.year,
         _selectedDate.month,
         _selectedDate.day,
@@ -459,7 +460,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
       await plannerDatabase.addEvent(
         title: result['title'],
         location: result['location'],
-        startTime: startDateTime,
+        startTime: sdt,
         isAllDay: result['isAllDay'],
       );
       _loadData();
@@ -474,8 +475,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
         _selectedDate.day == DateTime.now().day &&
         _selectedDate.month == DateTime.now().month &&
         _selectedDate.year == DateTime.now().year;
-    final completedCount = _tasks.where((t) => t.isCompleted).length,
-        totalCount = _tasks.length;
+    final comp = _tasks.where((t) => t.isCompleted).length,
+        total = _tasks.length;
 
     return Scaffold(
       appBar: AppBar(
@@ -484,14 +485,14 @@ class _PlannerScreenState extends State<PlannerScreen> {
           IconButton(
             icon: const Icon(Icons.calendar_today),
             onPressed: () async {
-              final picked = await showDatePicker(
+              final p = await showDatePicker(
                 context: context,
                 initialDate: _selectedDate,
                 firstDate: DateTime(2020),
                 lastDate: DateTime(2100),
               );
-              if (picked != null) {
-                setState(() => _selectedDate = picked);
+              if (p != null) {
+                setState(() => _selectedDate = p);
                 _loadData();
               }
             },
@@ -501,8 +502,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (totalCount > 0) ...[
-            _DayProgress(completed: completedCount, total: totalCount),
+          if (total > 0) ...[
+            _DayProgress(completed: comp, total: total),
             const SizedBox(height: 20),
           ],
           Row(
@@ -532,8 +533,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
               (task) => Dismissible(
                 key: Key('task_${task.id}'),
                 direction: DismissDirection.horizontal,
-                confirmDismiss: (direction) async {
-                  if (direction == DismissDirection.startToEnd) {
+                confirmDismiss: (d) async {
+                  if (d == DismissDirection.startToEnd) {
                     await plannerDatabase.completeRecurringTask(task);
                     _loadData();
                     return false;
@@ -570,8 +571,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
                     await plannerDatabase.completeRecurringTask(task);
                     _loadData();
                   },
-                  onRescheduleToDate: (DateTime date) async {
-                    await plannerDatabase.rescheduleTask(task, date);
+                  onOpenSubtasks: () => _openSubtasks(task),
+                  onRescheduleToDate: (DateTime d) async {
+                    await plannerDatabase.rescheduleTask(task, d);
                     _loadData();
                   },
                 ),
@@ -618,19 +620,19 @@ class _PlannerScreenState extends State<PlannerScreen> {
               ..._habits
                   .where((h) => _activeHabitIds.contains(h.id))
                   .map(
-                    (habit) => _HabitCard(
-                      habit: habit,
+                    (h) => _HabitCard(
+                      habit: h,
                       selectedDate: _selectedDate,
                       onTap: () async {
                         await plannerDatabase.toggleHabitForDate(
-                          habit.id,
+                          h.id,
                           _selectedDate,
                         );
                         _loadData();
                       },
                       onDelete: () async {
-                        await plannerDatabase.deleteHabit(habit.id);
-                        await HabitDaysService.delete(habit.id);
+                        await plannerDatabase.deleteHabit(h.id);
+                        await HabitDaysService.delete(h.id);
                         _loadData();
                       },
                     ),
@@ -658,10 +660,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
             )
           else
             ..._events.map(
-              (event) => _EventCard(
-                event: event,
+              (e) => _EventCard(
+                event: e,
                 onDelete: () async {
-                  await plannerDatabase.deleteEvent(event.id);
+                  await plannerDatabase.deleteEvent(e.id);
                   _loadData();
                 },
               ),
@@ -708,23 +710,161 @@ class _PlannerScreenState extends State<PlannerScreen> {
   }
 }
 
+// ======== ЭКРАН ПОДЗАДАЧ ========
+
+class SubtasksScreen extends StatefulWidget {
+  final Task task;
+  const SubtasksScreen({super.key, required this.task});
+  @override
+  State<SubtasksScreen> createState() => _SubtasksScreenState();
+}
+
+class _SubtasksScreenState extends State<SubtasksScreen> {
+  List<Subtask> _subtasks = [];
+  final _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _subtasks = []);
+    _subtasks = await plannerDatabase.getSubtasks(widget.task.id);
+    setState(() {});
+  }
+
+  Future<void> _add() async {
+    final t = _controller.text.trim();
+    if (t.isEmpty) return;
+    await plannerDatabase.addSubtask(taskId: widget.task.id, title: t);
+    _controller.clear();
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final done = _subtasks.where((s) => s.isCompleted).length;
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.task.title)),
+      body: Column(
+        children: [
+          if (_subtasks.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: _DayProgress(completed: done, total: _subtasks.length),
+            ),
+          Expanded(
+            child: _subtasks.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Нет подзадач',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _subtasks.length,
+                    itemBuilder: (_, i) {
+                      final s = _subtasks[i];
+                      return ListTile(
+                        leading: GestureDetector(
+                          onTap: () async {
+                            await plannerDatabase.toggleSubtask(
+                              s.id,
+                              !s.isCompleted,
+                            );
+                            _load();
+                          },
+                          child: Icon(
+                            s.isCompleted
+                                ? Icons.check_box
+                                : Icons.check_box_outline_blank,
+                            color: s.isCompleted
+                                ? Colors.greenAccent
+                                : Colors.grey,
+                          ),
+                        ),
+                        title: Text(
+                          s.title,
+                          style: TextStyle(
+                            decoration: s.isCompleted
+                                ? TextDecoration.lineThrough
+                                : null,
+                            color: s.isCompleted ? Colors.grey : null,
+                          ),
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 20),
+                          color: Colors.grey,
+                          onPressed: () async {
+                            await plannerDatabase.deleteSubtask(s.id);
+                            _load();
+                          },
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      decoration: InputDecoration(
+                        hintText: 'Новая подзадача...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[900],
+                      ),
+                      onSubmitted: (_) => _add(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    onPressed: _add,
+                    icon: const Icon(Icons.add),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+}
+
+// ======== ВИДЖЕТЫ ========
+
 class _DayProgress extends StatelessWidget {
   final int completed, total;
   const _DayProgress({required this.completed, required this.total});
   @override
   Widget build(BuildContext context) {
-    final percent = total > 0 ? completed / total : 0.0;
-    final color = percent == 1.0
+    final p = total > 0 ? completed / total : 0.0;
+    final c = p == 1.0
         ? Colors.greenAccent
-        : percent > 0.5
+        : p > 0.5
         ? Colors.orangeAccent
         : Colors.redAccent;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: c.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: c.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -733,12 +873,12 @@ class _DayProgress extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'ПРОГРЕСС ДНЯ',
+                'ПРОГРЕСС',
                 style: TextStyle(fontSize: 12, letterSpacing: 2),
               ),
               Text(
-                '$completed из $total задач',
-                style: TextStyle(fontWeight: FontWeight.bold, color: color),
+                '$completed из $total',
+                style: TextStyle(fontWeight: FontWeight.bold, color: c),
               ),
             ],
           ),
@@ -746,13 +886,13 @@ class _DayProgress extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
-              value: percent,
+              value: p,
               minHeight: 10,
               backgroundColor: Colors.grey[800],
-              valueColor: AlwaysStoppedAnimation(color),
+              valueColor: AlwaysStoppedAnimation(c),
             ),
           ),
-          if (percent == 1.0)
+          if (p == 1.0)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
@@ -769,47 +909,56 @@ class _DayProgress extends StatelessWidget {
 class _TaskCard extends StatelessWidget {
   final Task task;
   final VoidCallback onToggle;
+  final VoidCallback onOpenSubtasks;
   final Function(DateTime) onRescheduleToDate;
   const _TaskCard({
     required this.task,
     required this.onToggle,
+    required this.onOpenSubtasks,
     required this.onRescheduleToDate,
   });
   @override
   Widget build(BuildContext context) {
-    final priorityColor = switch (task.priority) {
+    final pc = switch (task.priority) {
       'high' => Colors.redAccent,
       'medium' => Colors.orangeAccent,
       _ => Colors.greenAccent,
     };
     return Card(
       child: InkWell(
-        onLongPress: () {
-          showModalBottomSheet(
-            context: context,
-            builder: (context) => SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.edit_calendar),
-                    title: const Text('Перенести на другую дату'),
-                    onTap: () async {
-                      Navigator.pop(context);
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: task.dueDate ?? DateTime.now(),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked != null) onRescheduleToDate(picked);
-                    },
-                  ),
-                ],
-              ),
+        onTap: onOpenSubtasks,
+        onLongPress: () => showModalBottomSheet(
+          context: context,
+          builder: (_) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.checklist),
+                  title: const Text('Подзадачи'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    onOpenSubtasks();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.edit_calendar),
+                  title: const Text('Перенести на другую дату'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final p = await showDatePicker(
+                      context: context,
+                      initialDate: task.dueDate ?? DateTime.now(),
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime(2100),
+                    );
+                    if (p != null) onRescheduleToDate(p);
+                  },
+                ),
+              ],
             ),
-          );
-        },
+          ),
+        ),
         child: ListTile(
           leading: GestureDetector(
             onTap: onToggle,
@@ -828,6 +977,8 @@ class _TaskCard extends StatelessWidget {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Icon(Icons.list, size: 16, color: Colors.grey[600]),
+              const SizedBox(width: 8),
               if (task.recurrence != null)
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
@@ -836,10 +987,7 @@ class _TaskCard extends StatelessWidget {
               Container(
                 width: 8,
                 height: 8,
-                decoration: BoxDecoration(
-                  color: priorityColor,
-                  shape: BoxShape.circle,
-                ),
+                decoration: BoxDecoration(color: pc, shape: BoxShape.circle),
               ),
             ],
           ),
@@ -874,30 +1022,30 @@ class _HabitCardState extends State<_HabitCard> {
   }
 
   Future<void> _loadStatus() async {
-    final isDone = await plannerDatabase.isHabitDoneForDate(
+    final d = await plannerDatabase.isHabitDoneForDate(
       widget.habit.id,
       widget.selectedDate,
     );
-    final streak = await plannerDatabase.getHabitStreakForDate(
+    final s = await plannerDatabase.getHabitStreakForDate(
       widget.habit.id,
       widget.selectedDate,
     );
     if (mounted)
       setState(() {
-        _isDone = isDone;
-        _streak = streak;
+        _isDone = d;
+        _streak = s;
       });
   }
 
   @override
   Widget build(BuildContext context) {
-    String subtitle;
+    String sub;
     if (widget.habit.frequency == 'custom') {
-      subtitle = _streak >= widget.habit.targetCount
+      sub = _streak >= widget.habit.targetCount
           ? '✅ ${widget.habit.targetCount}/${widget.habit.targetCount} на этой неделе'
           : '$_streak/${widget.habit.targetCount} на этой неделе';
     } else {
-      subtitle = _streak > 0
+      sub = _streak > 0
           ? '🔥 $_streak ${_daysWord(_streak)} подряд'
           : 'Начните сегодня';
     }
@@ -933,7 +1081,7 @@ class _HabitCardState extends State<_HabitCard> {
           style: TextStyle(color: _isDone ? Colors.greenAccent : null),
         ),
         subtitle: Text(
-          subtitle,
+          sub,
           style: TextStyle(
             fontSize: 12,
             color: _streak > 0 ? Colors.orangeAccent : Colors.grey,
@@ -962,7 +1110,7 @@ class _EventCard extends StatelessWidget {
   const _EventCard({required this.event, required this.onDelete});
   @override
   Widget build(BuildContext context) {
-    final timeStr = event.isAllDay
+    final ts = event.isAllDay
         ? 'Весь день'
         : '${event.startTime.hour}:${event.startTime.minute.toString().padLeft(2, '0')}';
     return Card(
@@ -981,7 +1129,7 @@ class _EventCard extends StatelessWidget {
         title: Text(event.title),
         subtitle: Row(
           children: [
-            Text(timeStr),
+            Text(ts),
             if (event.location != null) ...[
               const Text(' · '),
               Icon(Icons.location_on, size: 14, color: Colors.grey[500]),
