@@ -39,19 +39,31 @@ class SavingsGoals extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
-@DriftDatabase(tables: [Transactions, Budgets, SavingsGoals])
+// Таблица долгов
+class Debts extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get title => text()();
+  RealColumn get totalAmount => real()();
+  RealColumn get paidAmount => real().withDefault(const Constant(0))();
+  RealColumn get monthlyPayment =>
+      real().withDefault(const Constant(0))(); // плановый ежемесячный платёж
+  TextColumn get icon => text().withDefault(const Constant('💳'))();
+  BoolColumn get isCompleted => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+@DriftDatabase(tables: [Transactions, Budgets, SavingsGoals, Debts])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onUpgrade: (m, from, to) async {
-      if (from < 3) {
-        await m.createTable(savingsGoals);
-      }
+      if (from < 4) await m.createTable(debts);
+      if (from < 5) await m.addColumn(debts, debts.monthlyPayment);
     },
   );
 
@@ -86,7 +98,11 @@ class AppDatabase extends _$AppDatabase {
     DateTime end,
   ) {
     return (select(transactions)
-          ..where((t) => t.date.isBetweenValues(start, end))
+          ..where(
+            (t) =>
+                t.date.isBiggerOrEqualValue(start) &
+                t.date.isSmallerThanValue(end),
+          )
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .get();
   }
@@ -97,47 +113,42 @@ class AppDatabase extends _$AppDatabase {
 
   Future<double> getBalance() async {
     final query = await customSelect(
-      'SELECT '
-      'COALESCE(SUM(CASE WHEN type = \'income\' THEN amount ELSE -amount END), 0) as total '
-      'FROM transactions',
+      'SELECT COALESCE(SUM(CASE WHEN type = \'income\' THEN amount ELSE -amount END), 0) as total FROM transactions',
     ).getSingle();
     return query.read<double>('total')!;
   }
 
   Future<List<Map<String, dynamic>>> monthlySummary() async {
     return customSelect(
-      'SELECT '
-      'strftime(\'%m\', date / 1000, \'unixepoch\') as month, '
-      'strftime(\'%Y\', date / 1000, \'unixepoch\') as year, '
+      'SELECT strftime(\'%Y-%m\', date / 1000, \'unixepoch\') as month, '
       'SUM(CASE WHEN type = \'income\' THEN amount ELSE 0 END) as income, '
       'SUM(CASE WHEN type = \'expense\' THEN amount ELSE 0 END) as expense '
-      'FROM transactions '
-      'GROUP BY year, month ORDER BY year DESC, month DESC LIMIT 6',
+      'FROM transactions GROUP BY month ORDER BY month DESC LIMIT 6',
     ).get().then(
-      (rows) => rows.map((r) {
-        final y = r.read<String>('year');
-        final m = r.read<String>('month');
-        return {
-          'month': '$y-$m',
-          'income': r.read<double>('income'),
-          'expense': r.read<double>('expense'),
-        };
-      }).toList(),
+      (rows) => rows
+          .map(
+            (r) => {
+              'month': r.read<String>('month'),
+              'income': r.read<double>('income'),
+              'expense': r.read<double>('expense'),
+            },
+          )
+          .toList(),
     );
   }
 
   Future<List<Map<String, dynamic>>> expensesByCategory() async {
     return customSelect(
-      'SELECT category, SUM(amount) as total '
-      'FROM transactions WHERE type = \'expense\' '
-      'GROUP BY category ORDER BY total DESC',
+      'SELECT category, SUM(amount) as total FROM transactions WHERE type = \'expense\' GROUP BY category ORDER BY total DESC',
     ).get().then(
-      (rows) => rows.map((r) {
-        return {
-          'category': r.read<String>('category'),
-          'total': r.read<double>('total'),
-        };
-      }).toList(),
+      (rows) => rows
+          .map(
+            (r) => {
+              'category': r.read<String>('category'),
+              'total': r.read<double>('total'),
+            },
+          )
+          .toList(),
     );
   }
 
@@ -146,18 +157,17 @@ class AppDatabase extends _$AppDatabase {
     DateTime end,
   ) async {
     return customSelect(
-      'SELECT category, SUM(amount) as total '
-      'FROM transactions WHERE type = \'expense\' '
-      'AND date >= ? AND date <= ? '
-      'GROUP BY category ORDER BY total DESC',
+      'SELECT category, SUM(amount) as total FROM transactions WHERE type = \'expense\' AND date >= ? AND date < ? GROUP BY category ORDER BY total DESC',
       variables: [Variable.withDateTime(start), Variable.withDateTime(end)],
     ).get().then(
-      (rows) => rows.map((r) {
-        return {
-          'category': r.read<String>('category'),
-          'total': r.read<double>('total'),
-        };
-      }).toList(),
+      (rows) => rows
+          .map(
+            (r) => {
+              'category': r.read<String>('category'),
+              'total': r.read<double>('total'),
+            },
+          )
+          .toList(),
     );
   }
 
@@ -179,7 +189,6 @@ class AppDatabase extends _$AppDatabase {
         budgets,
       )..where((b) => b.category.isNull() & b.period.equals(period))).go();
     }
-
     await into(budgets).insert(
       BudgetsCompanion(
         category: Value.absentIfNull(category),
@@ -190,9 +199,7 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  Future<List<Budget>> getAllBudgets() {
-    return select(budgets).get();
-  }
+  Future<List<Budget>> getAllBudgets() => select(budgets).get();
 
   Future<Budget?> getBudgetByCategory(String? category) {
     if (category == null) {
@@ -207,9 +214,8 @@ class AppDatabase extends _$AppDatabase {
         .getSingleOrNull();
   }
 
-  Future<void> deleteBudget(int id) async {
-    await (delete(budgets)..where((b) => b.id.equals(id))).go();
-  }
+  Future<void> deleteBudget(int id) async =>
+      await (delete(budgets)..where((b) => b.id.equals(id))).go();
 
   // ======== ЦЕЛИ НАКОПЛЕНИЯ ========
 
@@ -229,29 +235,61 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  Future<List<SavingsGoal>> getAllSavingsGoals() {
-    return (select(
-      savingsGoals,
-    )..orderBy([(s) => OrderingTerm.desc(s.createdAt)])).get();
-  }
+  Future<List<SavingsGoal>> getAllSavingsGoals() => (select(
+    savingsGoals,
+  )..orderBy([(s) => OrderingTerm.desc(s.createdAt)])).get();
 
   Future<void> updateSavingsGoalAmount(int id, double amount) async {
-    final completed =
-        amount >=
-        (await (select(savingsGoals)..where((s) => s.id.equals(id)))
-            .getSingle()
-            .then((g) => g.targetAmount));
+    final target = (await (select(
+      savingsGoals,
+    )..where((s) => s.id.equals(id))).getSingle()).targetAmount;
     await (update(savingsGoals)..where((s) => s.id.equals(id))).write(
       SavingsGoalsCompanion(
         currentAmount: Value(amount),
-        isCompleted: Value(completed),
+        isCompleted: Value(amount >= target),
       ),
     );
   }
 
-  Future<void> deleteSavingsGoal(int id) async {
-    await (delete(savingsGoals)..where((s) => s.id.equals(id))).go();
+  Future<void> deleteSavingsGoal(int id) async =>
+      await (delete(savingsGoals)..where((s) => s.id.equals(id))).go();
+
+  // ======== ДОЛГИ ========
+
+  Future<void> addDebt({
+    required String title,
+    required double totalAmount,
+    double monthlyPayment = 0,
+    String icon = '💳',
+  }) async {
+    await into(debts).insert(
+      DebtsCompanion(
+        title: Value(title),
+        totalAmount: Value(totalAmount),
+        monthlyPayment: Value(monthlyPayment),
+        icon: Value(icon),
+      ),
+    );
   }
+
+  Future<List<Debt>> getAllDebts() =>
+      (select(debts)..orderBy([(d) => OrderingTerm.desc(d.createdAt)])).get();
+
+  Future<void> addDebtPayment(int id, double amount) async {
+    final debt = await (select(
+      debts,
+    )..where((d) => d.id.equals(id))).getSingle();
+    final newPaid = debt.paidAmount + amount;
+    await (update(debts)..where((d) => d.id.equals(id))).write(
+      DebtsCompanion(
+        paidAmount: Value(newPaid),
+        isCompleted: Value(newPaid >= debt.totalAmount),
+      ),
+    );
+  }
+
+  Future<void> deleteDebt(int id) async =>
+      await (delete(debts)..where((d) => d.id.equals(id))).go();
 }
 
 LazyDatabase _openConnection() {

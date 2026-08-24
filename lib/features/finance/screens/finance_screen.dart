@@ -8,70 +8,50 @@ import 'savings_screen.dart';
 import 'history_screen.dart';
 import 'finance_onboarding.dart';
 import 'categories_screen.dart';
+import 'debts_screen.dart';
 
 // Советы по финансовой грамотности
 final List<Map<String, String>> _financialTips = [
   {
     'title': 'Правило 50/30/20',
     'body':
-        '50% дохода — на необходимое (жильё, еда, транспорт). '
-        '30% — на желания (развлечения, хобби). '
-        '20% — на сбережения и инвестиции. '
-        'Это базовая формула финансового здоровья.',
+        '50% дохода — на необходимое (жильё, еда, транспорт). 30% — на желания (развлечения, хобби). 20% — на сбережения и инвестиции. Это базовая формула финансового здоровья.',
     'icon': '📊',
   },
   {
     'title': 'Подушка безопасности',
     'body':
-        'Финансовая подушка — это 3-6 месячных расходов, '
-        'которые лежат на отдельном счёте. '
-        'Она защищает от неожиданных ситуаций: потеря работы, '
-        'болезнь, срочный ремонт. Начните откладывать 5-10% дохода.',
+        'Финансовая подушка — это 3-6 месячных расходов, которые лежат на отдельном счёте. Она защищает от неожиданных ситуаций: потеря работы, болезнь, срочный ремонт. Начните откладывать 5-10% дохода.',
     'icon': '🛡️',
   },
   {
     'title': 'Метод конвертов',
     'body':
-        'Разложите деньги по категориям в начале месяца. '
-        'Когда конверт пуст — траты в этой категории прекращаются. '
-        'Это помогает контролировать импульсивные покупки '
-        'и видеть реальную картину расходов.',
+        'Разложите деньги по категориям в начале месяца. Когда конверт пуст — траты в этой категории прекращаются. Это помогает контролировать импульсивные покупки и видеть реальную картину расходов.',
     'icon': '✉️',
   },
   {
     'title': 'Осознанные траты',
     'body':
-        'Перед покупкой задайте себе три вопроса: '
-        '1) Это действительно нужно? '
-        '2) Это принесёт пользу через месяц? '
-        '3) Я могу позволить себе это без ущерба для целей? '
-        'Пауза в 24 часа спасает от импульсивных решений.',
+        'Перед покупкой задайте себе три вопроса: 1) Это действительно нужно? 2) Это принесёт пользу через месяц? 3) Я могу позволить себе это без ущерба для целей? Пауза в 24 часа спасает от импульсивных решений.',
     'icon': '🧠',
   },
   {
     'title': 'Цена импульса',
     'body':
-        'Импульсивные покупки — это способ справиться с эмоциями. '
-        'Вместо покупки попробуйте: прогулку, дыхательное упражнение, '
-        'звонок другу. Запишите, что вы хотели купить — '
-        'через неделю 80% желаний исчезают.',
+        'Импульсивные покупки — это способ справиться с эмоциями. Вместо покупки попробуйте: прогулку, дыхательное упражнение, звонок другу. Запишите, что вы хотели купить — через неделю 80% желаний исчезают.',
     'icon': '💡',
   },
   {
     'title': 'Сначала заплати себе',
     'body':
-        'Откладывайте 10-20% дохода СРАЗУ после получения, '
-        'до любых трат. Автоматический перевод на накопительный счёт '
-        'убирает соблазн потратить. Это главный принцип '
-        'построения капитала.',
+        'Откладывайте 10-20% дохода СРАЗУ после получения, до любых трат. Автоматический перевод на накопительный счёт убирает соблазн потратить. Это главный принцип построения капитала.',
     'icon': '🏦',
   },
   {
     'title': 'Финансовый дневник',
     'body':
-        'Записывайте не только суммы, но и эмоции при тратах. '
-        'Это поможет заметить триггеры: стресс, скука, социальное давление. '
-        'Осознанность в финансах начинается с понимания своих паттернов.',
+        'Записывайте не только суммы, но и эмоции при тратах. Это поможет заметить триггеры: стресс, скука, социальное давление. Осознанность в финансах начинается с понимания своих паттернов.',
     'icon': '📝',
   },
 ];
@@ -106,20 +86,17 @@ class _FinanceScreenState extends State<FinanceScreen> {
 
   Future<void> _checkOnboarding() async {
     final shouldShow = await FinanceOnboarding.shouldShow();
-    if (mounted) {
-      setState(() => _showOnboarding = shouldShow);
-    }
+    if (mounted) setState(() => _showOnboarding = shouldShow);
   }
 
   Future<void> _loadCategories() async {
     final expense = await CategoriesService.getExpenseCategories();
     final income = await CategoriesService.getIncomeCategories();
-    if (mounted) {
+    if (mounted)
       setState(() {
         _expenseCategories = expense;
         _incomeCategories = income;
       });
-    }
   }
 
   Map<String, String> _getDailyTip() {
@@ -151,7 +128,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
     final transactions = _periodFilter == 'all'
         ? await database.getAllTransactions()
         : await database.getTransactionsByPeriod(start, end);
-
     final balance = await database.getBalance();
     final expenses = _periodFilter == 'all'
         ? await database.expensesByCategory()
@@ -214,6 +190,16 @@ class _FinanceScreenState extends State<FinanceScreen> {
             },
           ),
           IconButton(
+            icon: const Icon(Icons.credit_card),
+            tooltip: 'Долги',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const DebtsScreen()),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.flag_outlined),
             tooltip: 'Цели накопления — копите на мечту',
             onPressed: () {
@@ -251,23 +237,16 @@ class _FinanceScreenState extends State<FinanceScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Баланс
           _BalanceCard(balance: _balance),
           const SizedBox(height: 16),
-
-          // Совет дня
           if (_dailyTip.isNotEmpty) ...[
             _TipCard(tip: _dailyTip),
             const SizedBox(height: 16),
           ],
-
-          // Бюджет
           if (_generalBudget != null) ...[
             _BudgetCard(budget: _generalBudget!, spent: periodExpense),
             const SizedBox(height: 16),
           ],
-
-          // Фильтр периода
           Row(
             children: [
               _PeriodButton(
@@ -317,8 +296,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
             style: TextStyle(fontSize: 11, color: Colors.grey[600]),
           ),
           const SizedBox(height: 24),
-
-          // Круговая диаграмма расходов
           if (_expensesByCategory.isNotEmpty) ...[
             const Text(
               'РАСХОДЫ ПО КАТЕГОРИЯМ',
@@ -339,8 +316,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
             ..._buildLegend(),
             const SizedBox(height: 24),
           ],
-
-          // Кнопка истории
           Padding(
             padding: const EdgeInsets.only(top: 16),
             child: SizedBox(
@@ -388,12 +363,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
       Colors.tealAccent,
       Colors.pinkAccent,
     ];
-
     final total = _expensesByCategory.fold<double>(
       0,
       (sum, item) => sum + (item['total'] as double),
     );
-
     return _expensesByCategory.asMap().entries.map((entry) {
       final index = entry.key;
       final item = entry.value;
@@ -423,12 +396,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
       Colors.tealAccent,
       Colors.pinkAccent,
     ];
-
     final total = _expensesByCategory.fold<double>(
       0,
       (sum, item) => sum + (item['total'] as double),
     );
-
     return _expensesByCategory.asMap().entries.map((entry) {
       final index = entry.key;
       final item = entry.value;
@@ -462,14 +433,12 @@ class _FinanceScreenState extends State<FinanceScreen> {
 class _TipCard extends StatefulWidget {
   final Map<String, String> tip;
   const _TipCard({required this.tip});
-
   @override
   State<_TipCard> createState() => _TipCardState();
 }
 
 class _TipCardState extends State<_TipCard> {
   bool _isExpanded = false;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -532,7 +501,6 @@ class _TipCardState extends State<_TipCard> {
 class _BalanceCard extends StatelessWidget {
   final double balance;
   const _BalanceCard({required this.balance});
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -571,7 +539,6 @@ class _BudgetCard extends StatelessWidget {
   final Budget budget;
   final double spent;
   const _BudgetCard({required this.budget, required this.spent});
-
   @override
   Widget build(BuildContext context) {
     final percent = (spent / budget.amount).clamp(0.0, 1.0);
@@ -580,7 +547,6 @@ class _BudgetCard extends StatelessWidget {
         : percent > 0.7
         ? Colors.orangeAccent
         : Colors.greenAccent;
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -635,14 +601,12 @@ class _PeriodButton extends StatelessWidget {
   final String value;
   final String current;
   final Function(String) onTap;
-
   const _PeriodButton({
     required this.label,
     required this.value,
     required this.current,
     required this.onTap,
   });
-
   @override
   Widget build(BuildContext context) {
     final isSelected = value == current;
@@ -683,13 +647,11 @@ class _PeriodButton extends StatelessWidget {
 class AddTransactionDialog extends StatefulWidget {
   final List<String> expenseCategories;
   final List<String> incomeCategories;
-
   const AddTransactionDialog({
     super.key,
     required this.expenseCategories,
     required this.incomeCategories,
   });
-
   @override
   State<AddTransactionDialog> createState() => _AddTransactionDialogState();
 }
@@ -707,9 +669,7 @@ class _AddTransactionDialogState extends State<AddTransactionDialog> {
   @override
   void initState() {
     super.initState();
-    if (_currentCategories.isNotEmpty) {
-      _category = _currentCategories.first;
-    }
+    if (_currentCategories.isNotEmpty) _category = _currentCategories.first;
   }
 
   @override
@@ -725,23 +685,8 @@ class _AddTransactionDialogState extends State<AddTransactionDialog> {
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 1)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
-              primary: Theme.of(context).colorScheme.primary,
-              onPrimary: Colors.black,
-              surface: const Color(0xFF1B1B2F),
-              onSurface: Colors.white,
-            ),
-          ),
-          child: child!,
-        );
-      },
     );
-    if (picked != null) {
-      setState(() => _selectedDate = picked);
-    }
+    if (picked != null) setState(() => _selectedDate = picked);
   }
 
   @override
@@ -761,9 +706,8 @@ class _AddTransactionDialogState extends State<AddTransactionDialog> {
               onSelectionChanged: (selection) {
                 setState(() {
                   _type = selection.first;
-                  if (_currentCategories.isNotEmpty) {
+                  if (_currentCategories.isNotEmpty)
                     _category = _currentCategories.first;
-                  }
                 });
               },
             ),
