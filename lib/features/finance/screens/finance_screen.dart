@@ -13,7 +13,6 @@ import 'credit_calculator_screen.dart';
 
 // Советы по финансовой грамотности
 final List<Map<String, String>> _financialTips = [
-  // База
   {
     'title': 'Правило 50/30/20',
     'body':
@@ -42,7 +41,6 @@ final List<Map<String, String>> _financialTips = [
     'icon': '📝',
     'category': 'База',
   },
-  // Психология
   {
     'title': 'Цена импульса',
     'body':
@@ -78,7 +76,6 @@ final List<Map<String, String>> _financialTips = [
     'icon': '🎭',
     'category': 'Психология',
   },
-  // Экономия
   {
     'title': 'Метод конвертов',
     'body':
@@ -114,7 +111,6 @@ final List<Map<String, String>> _financialTips = [
     'icon': '🛒',
     'category': 'Экономия',
   },
-  // Инвестиции
   {
     'title': 'Сложный процент',
     'body':
@@ -150,7 +146,6 @@ final List<Map<String, String>> _financialTips = [
     'icon': '⚖️',
     'category': 'Инвестиции',
   },
-  // Кредиты
   {
     'title': 'Кредит — это дорого',
     'body':
@@ -190,7 +185,6 @@ final List<Map<String, String>> _financialTips = [
 
 class FinanceScreen extends StatefulWidget {
   const FinanceScreen({super.key});
-
   @override
   State<FinanceScreen> createState() => _FinanceScreenState();
 }
@@ -204,7 +198,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
   bool _showOnboarding = false;
   List<String> _expenseCategories = [];
   List<String> _incomeCategories = [];
-
   String _periodFilter = 'all';
 
   @override
@@ -243,7 +236,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
     final now = DateTime.now();
     DateTime start;
     DateTime end = now;
-
     switch (_periodFilter) {
       case 'week':
         start = now.subtract(Duration(days: now.weekday - 1));
@@ -257,7 +249,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
       default:
         start = DateTime(2000);
     }
-
     final transactions = _periodFilter == 'all'
         ? await database.getAllTransactions()
         : await database.getTransactionsByPeriod(start, end);
@@ -266,7 +257,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
         ? await database.expensesByCategory()
         : await database.expensesByCategoryForPeriod(start, end);
     final budget = await database.getBudgetByCategory(null);
-
     setState(() {
       _transactions = transactions;
       _balance = balance;
@@ -283,7 +273,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
         incomeCategories: _incomeCategories,
       ),
     );
-
     if (result != null) {
       await database.addTransaction(
         type: result['type'],
@@ -292,6 +281,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
         date: result['date'],
         note: result['note'],
       );
+      await rpgDatabase.addXpWithAttribute(3, 'resource');
       _loadData();
     }
   }
@@ -305,7 +295,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
         },
       );
     }
-
     final periodExpense = _transactions
         .where((t) => t.type == 'expense')
         .fold<double>(0, (sum, t) => sum + t.amount);
@@ -573,8 +562,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
   }
 }
 
-// ======== ВСПОМОГАТЕЛЬНЫЕ ВИДЖЕТЫ ========
-
 class _TipCard extends StatefulWidget {
   final Map<String, String> tip;
   const _TipCard({required this.tip});
@@ -800,8 +787,6 @@ class _PeriodButton extends StatelessWidget {
   }
 }
 
-// ======== ДИАЛОГ ДОБАВЛЕНИЯ ========
-
 class AddTransactionDialog extends StatefulWidget {
   final List<String> expenseCategories;
   final List<String> incomeCategories;
@@ -820,10 +805,8 @@ class _AddTransactionDialogState extends State<AddTransactionDialog> {
   final _noteController = TextEditingController();
   String _category = 'Продукты';
   DateTime _selectedDate = DateTime.now();
-
   List<String> get _currentCategories =>
       _type == 'expense' ? widget.expenseCategories : widget.incomeCategories;
-
   @override
   void initState() {
     super.initState();

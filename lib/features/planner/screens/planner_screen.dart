@@ -17,7 +17,6 @@ class _PlannerScreenState extends State<PlannerScreen> {
   bool _showHabits = true;
   final _quickAddController = TextEditingController();
   Set<int> _activeHabitIds = {};
-
   final _habitIcons = [
     '🏃',
     '💪',
@@ -629,6 +628,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 confirmDismiss: (d) async {
                   if (d == DismissDirection.startToEnd) {
                     await plannerDatabase.completeRecurringTask(task);
+                    if (!task.isCompleted)
+                      await rpgDatabase.addXpWithAttribute(10, 'strength');
                     _loadData();
                     return false;
                   } else {
@@ -662,6 +663,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   task: task,
                   onToggle: () async {
                     await plannerDatabase.completeRecurringTask(task);
+                    if (!task.isCompleted)
+                      await rpgDatabase.addXpWithAttribute(10, 'strength');
                     _loadData();
                   },
                   onOpenSubtasks: () => _openSubtasks(task),
@@ -721,6 +724,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
                           h.id,
                           _selectedDate,
                         );
+                        final wasDone = await plannerDatabase
+                            .isHabitDoneForDate(h.id, _selectedDate);
+                        if (wasDone)
+                          await rpgDatabase.addXpWithAttribute(5, 'balance');
                         _loadData();
                       },
                       onDelete: () async {
