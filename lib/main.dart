@@ -13,5 +13,6 @@ void main() async {
   database = AppDatabase();
   plannerDatabase = PlannerDatabase();
   rpgDatabase = RpgDatabase();
+  await rpgDatabase.initAchievements();
   runApp(const MindForgeApp());
 }

@@ -107,17 +107,140 @@ class RpgDatabase extends _$RpgDatabase {
     }
   }
 
-  // ======== АЧИВКИ ========
+  // ======== ДОСТИЖЕНИЯ ========
 
   Future<List<Achievement>> getAchievements() => select(achievements).get();
 
   Future<void> unlockAchievement(int id) async {
-    await (update(achievements)..where((a) => a.id.equals(id))).write(
-      AchievementsCompanion(
-        isUnlocked: const Value(true),
-        unlockedAt: Value(DateTime.now()),
-      ),
-    );
+    final existing = await (select(
+      achievements,
+    )..where((a) => a.id.equals(id))).getSingleOrNull();
+    if (existing != null && !existing.isUnlocked) {
+      await (update(achievements)..where((a) => a.id.equals(id))).write(
+        AchievementsCompanion(
+          isUnlocked: const Value(true),
+          unlockedAt: Value(DateTime.now()),
+        ),
+      );
+    }
+  }
+
+  Future<void> initAchievements() async {
+    final existing = await select(achievements).get();
+    if (existing.isNotEmpty) return;
+
+    final defs = [
+      {
+        'title': 'Первые шаги',
+        'description': 'Выполните первую задачу',
+        'icon': '🎯',
+      },
+      {
+        'title': 'Транжира',
+        'description': 'Добавьте первый расход',
+        'icon': '💸',
+      },
+      {
+        'title': 'Капиталист',
+        'description': 'Добавьте первый доход',
+        'icon': '💰',
+      },
+      {
+        'title': 'Пламенная серия',
+        'description': 'Отмечайте привычку 7 дней подряд',
+        'icon': '🔥',
+      },
+      {
+        'title': 'Продуктивный день',
+        'description': 'Выполните 5 задач за день',
+        'icon': '⚔️',
+      },
+      {
+        'title': 'Путь воина',
+        'description': 'Достигните 2 уровня',
+        'icon': '🏆',
+      },
+      {
+        'title': 'Финансовый маг',
+        'description': 'Достигните 5 уровня',
+        'icon': '🧙',
+      },
+      {
+        'title': 'Мастер задач',
+        'description': 'Выполните 50 задач',
+        'icon': '✅',
+      },
+      {
+        'title': 'Король привычек',
+        'description': 'Отметьте 100 привычек',
+        'icon': '👑',
+      },
+      {
+        'title': 'Накопитель',
+        'description': 'Создайте цель накопления',
+        'icon': '🎯',
+      },
+      {
+        'title': 'Мечтатель',
+        'description': 'Достигните цели накопления',
+        'icon': '✨',
+      },
+      {
+        'title': 'Борец с долгами',
+        'description': 'Погасите долг полностью',
+        'icon': '🛡️',
+      },
+      {
+        'title': 'Планировщик',
+        'description': 'Создайте 10 задач',
+        'icon': '📋',
+      },
+      {
+        'title': 'Аналитик',
+        'description': 'Добавьте 20 транзакций',
+        'icon': '📊',
+      },
+      {
+        'title': 'Стрелок',
+        'description': 'Выполните задачу с высоким приоритетом',
+        'icon': '🎪',
+      },
+      {
+        'title': 'Рутинный герой',
+        'description': 'Создайте привычку',
+        'icon': '🔄',
+      },
+      {
+        'title': 'Бюджетный гуру',
+        'description': 'Установите бюджет',
+        'icon': '💼',
+      },
+      {
+        'title': 'Воин выходного дня',
+        'description': 'Выполните задачу в выходной',
+        'icon': '⚡',
+      },
+      {
+        'title': 'Ранняя пташка',
+        'description': 'Выполните задачу до 9 утра',
+        'icon': '🌅',
+      },
+      {
+        'title': 'Ночной страж',
+        'description': 'Выполните задачу после 22:00',
+        'icon': '🌙',
+      },
+    ];
+
+    for (final def in defs) {
+      await into(achievements).insert(
+        AchievementsCompanion(
+          title: Value(def['title']!),
+          description: Value(def['description']!),
+          icon: Value(def['icon']!),
+        ),
+      );
+    }
   }
 }
 

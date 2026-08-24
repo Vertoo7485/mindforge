@@ -21,6 +21,7 @@ class _CharacterScreenState extends State<CharacterScreen> {
   }
 
   Future<void> _load() async {
+    await rpgDatabase.initAchievements();
     final char = await rpgDatabase.getCharacter();
     final attrs = await rpgDatabase.getAttributes();
     final achievements = await rpgDatabase.getAchievements();
@@ -37,6 +38,8 @@ class _CharacterScreenState extends State<CharacterScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    final unlockedCount = _achievements.where((a) => a.isUnlocked).length;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Персонаж')),
       body: ListView(
@@ -51,9 +54,18 @@ class _CharacterScreenState extends State<CharacterScreen> {
           const SizedBox(height: 12),
           ..._attributes.map((a) => _AttributeBar(attribute: a)),
           const SizedBox(height: 24),
-          const Text(
-            'ДОСТИЖЕНИЯ',
-            style: TextStyle(fontSize: 12, letterSpacing: 2),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'ДОСТИЖЕНИЯ',
+                style: TextStyle(fontSize: 12, letterSpacing: 2),
+              ),
+              Text(
+                '$unlockedCount из ${_achievements.length}',
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           if (_achievements.isEmpty)

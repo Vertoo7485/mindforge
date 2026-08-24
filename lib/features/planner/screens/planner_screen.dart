@@ -359,6 +359,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
           (res['customDays'] as List).map((e) => e as int).toSet(),
         );
       }
+      await rpgDatabase.unlockAchievement(16);
       _loadData();
     }
   }
@@ -628,8 +629,18 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 confirmDismiss: (d) async {
                   if (d == DismissDirection.startToEnd) {
                     await plannerDatabase.completeRecurringTask(task);
-                    if (!task.isCompleted)
+                    if (!task.isCompleted) {
                       await rpgDatabase.addXpWithAttribute(10, 'strength');
+                      await rpgDatabase.unlockAchievement(1);
+                      if (task.priority == 'high')
+                        await rpgDatabase.unlockAchievement(15);
+                      final now = DateTime.now();
+                      if (now.hour < 9) await rpgDatabase.unlockAchievement(19);
+                      if (now.hour >= 22)
+                        await rpgDatabase.unlockAchievement(20);
+                      if (now.weekday == 6 || now.weekday == 7)
+                        await rpgDatabase.unlockAchievement(18);
+                    }
                     _loadData();
                     return false;
                   } else {
@@ -663,8 +674,18 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   task: task,
                   onToggle: () async {
                     await plannerDatabase.completeRecurringTask(task);
-                    if (!task.isCompleted)
+                    if (!task.isCompleted) {
                       await rpgDatabase.addXpWithAttribute(10, 'strength');
+                      await rpgDatabase.unlockAchievement(1);
+                      if (task.priority == 'high')
+                        await rpgDatabase.unlockAchievement(15);
+                      final now = DateTime.now();
+                      if (now.hour < 9) await rpgDatabase.unlockAchievement(19);
+                      if (now.hour >= 22)
+                        await rpgDatabase.unlockAchievement(20);
+                      if (now.weekday == 6 || now.weekday == 7)
+                        await rpgDatabase.unlockAchievement(18);
+                    }
                     _loadData();
                   },
                   onOpenSubtasks: () => _openSubtasks(task),
@@ -726,8 +747,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
                         );
                         final wasDone = await plannerDatabase
                             .isHabitDoneForDate(h.id, _selectedDate);
-                        if (wasDone)
+                        if (wasDone) {
                           await rpgDatabase.addXpWithAttribute(5, 'balance');
+                          await rpgDatabase.unlockAchievement(16);
+                        }
                         _loadData();
                       },
                       onDelete: () async {
@@ -811,8 +834,6 @@ class _PlannerScreenState extends State<PlannerScreen> {
     );
   }
 }
-
-// ======== ЭКРАН ПОДЗАДАЧ ========
 
 class SubtasksScreen extends StatefulWidget {
   final Task task;
