@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../main.dart';
 import '../models/rpg_database.dart';
+import '../widgets/silhouette_character.dart';
 
 class CharacterScreen extends StatefulWidget {
   const CharacterScreen({super.key});
@@ -109,7 +110,7 @@ class _CharacterCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(character.avatar, style: const TextStyle(fontSize: 72)),
+          SilhouetteCharacter(size: 180, level: character.level),
           const SizedBox(height: 16),
           Text(
             character.name,
