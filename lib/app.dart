@@ -4,6 +4,7 @@ import 'core/theme/app_theme.dart';
 import 'features/finance/screens/finance_screen.dart';
 import 'features/planner/screens/planner_screen.dart';
 import 'features/rpg/screens/character_screen.dart';
+import 'features/workout/screens/workout_screen.dart';
 
 class MindForgeApp extends StatelessWidget {
   const MindForgeApp({super.key});
@@ -39,6 +40,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = const [
     FinanceScreen(),
     PlannerScreen(),
+    WorkoutScreen(),
     CharacterScreen(),
   ];
 
@@ -61,6 +63,10 @@ class _MainScreenState extends State<MainScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.check_circle_outline),
             label: 'Планер',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.fitness_center),
+            label: 'Тренировки',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
