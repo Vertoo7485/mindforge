@@ -256,7 +256,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
         date: result['date'],
         note: result['note'],
       );
-      await rpgDatabase.addXpWithAttribute(3, 'resource');
+      await rpgDatabase.rewardAction(xp: 3, coins: 1, attribute: 'resource');
       if (result['type'] == 'expense') {
         await rpgDatabase.unlockAchievement(2);
       } else {

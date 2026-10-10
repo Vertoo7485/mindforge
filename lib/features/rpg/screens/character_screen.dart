@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../main.dart';
 import '../models/rpg_database.dart';
-import '../widgets/silhouette_character.dart';
 
 class CharacterScreen extends StatefulWidget {
   const CharacterScreen({super.key});
@@ -110,7 +109,7 @@ class _CharacterCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          SilhouetteCharacter(size: 180, level: character.level),
+          Text(character.avatar, style: const TextStyle(fontSize: 72)),
           const SizedBox(height: 16),
           Text(
             character.name,
@@ -123,6 +122,22 @@ class _CharacterCard extends StatelessWidget {
               fontSize: 16,
               color: Theme.of(context).colorScheme.primary,
             ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.monetization_on, color: Colors.amber, size: 20),
+              const SizedBox(width: 4),
+              Text(
+                '${character.coins}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.amber,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           ClipRRect(

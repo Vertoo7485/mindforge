@@ -12,6 +12,7 @@ class Character extends Table {
   IntColumn get level => integer().withDefault(const Constant(1))();
   IntColumn get xp => integer().withDefault(const Constant(0))();
   IntColumn get xpToNextLevel => integer().withDefault(const Constant(100))();
+  IntColumn get coins => integer().withDefault(const Constant(0))();
   TextColumn get avatar => text().withDefault(const Constant('⚔️'))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
@@ -38,7 +39,16 @@ class RpgDatabase extends _$RpgDatabase {
   RpgDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.addColumn(character, character.coins);
+      }
+    },
+  );
 
   // ======== ПЕРСОНАЖ ========
 
@@ -72,8 +82,25 @@ class RpgDatabase extends _$RpgDatabase {
     );
   }
 
+  Future<void> addCoins(int amount) async {
+    final char = await getCharacter();
+    await (update(character)..where((c) => c.id.equals(char.id))).write(
+      CharacterCompanion(coins: Value(char.coins + amount)),
+    );
+  }
+
   Future<void> addXpWithAttribute(int amount, String attribute) async {
     await addXp(amount);
+    await increaseAttribute(attribute, 1);
+  }
+
+  Future<void> rewardAction({
+    required int xp,
+    required int coins,
+    required String attribute,
+  }) async {
+    await addXp(xp);
+    await addCoins(coins);
     await increaseAttribute(attribute, 1);
   }
 

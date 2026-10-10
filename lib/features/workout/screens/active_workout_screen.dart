@@ -93,13 +93,15 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
       durationMinutes: widget.program.durationMinutes,
       date: DateTime.now(),
     );
-    await rpgDatabase.addXpWithAttribute(15, 'energy');
+    await rpgDatabase.rewardAction(xp: 15, coins: 3, attribute: 'energy');
 
     if (mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${widget.program.name} — завершена! +15 XP, +1 Энергия'),
+          content: Text(
+            '${widget.program.name} — завершена! +15 XP, +3 монетки, +1 Энергия',
+          ),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -138,9 +140,14 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
       0,
       (sum, e) => sum + widget.exerciseInfo[widget.exercises.indexOf(e)].sets,
     );
-    final completedSteps = widget.exercises
-        .take(_currentExerciseIndex)
-        .fold<int>(0, (sum, e) => sum + widget.exerciseInfo[widget.exercises.indexOf(e)].sets) +
+    final completedSteps =
+        widget.exercises
+            .take(_currentExerciseIndex)
+            .fold<int>(
+              0,
+              (sum, e) =>
+                  sum + widget.exerciseInfo[widget.exercises.indexOf(e)].sets,
+            ) +
         _currentSet +
         (_isResting ? 0 : 1);
 
@@ -174,38 +181,87 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 if (_isResting) ...[
                   Text(
                     'ОТДЫХ',
-                    style: TextStyle(fontSize: 24, letterSpacing: 3, color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 24,
+                      letterSpacing: 3,
+                      color: Colors.orangeAccent,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 24),
-                  Text('$_restSeconds', style: const TextStyle(fontSize: 80, fontWeight: FontWeight.bold)),
+                  Text(
+                    '$_restSeconds',
+                    style: const TextStyle(
+                      fontSize: 80,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 24),
-                  Text(_getNextLabel(), style: TextStyle(fontSize: 16, color: Colors.grey[400])),
+                  Text(
+                    _getNextLabel(),
+                    style: TextStyle(fontSize: 16, color: Colors.grey[400]),
+                  ),
                   const SizedBox(height: 8),
-                  Text('Подготовьтесь...', style: TextStyle(fontSize: 14, color: Colors.grey[500])),
+                  Text(
+                    'Подготовьтесь...',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                  ),
                 ] else ...[
                   Text(exercise.icon, style: const TextStyle(fontSize: 72)),
                   const SizedBox(height: 16),
-                  Text(exercise.name, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  Text(
+                    exercise.name,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                   const SizedBox(height: 8),
                   if (exercise.description != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(exercise.description!, style: TextStyle(fontSize: 14, color: Colors.grey[400]), textAlign: TextAlign.center),
+                      child: Text(
+                        exercise.description!,
+                        style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   const SizedBox(height: 16),
-                  Text('Подход ${_currentSet + 1} из ${info.sets}', style: TextStyle(fontSize: 18, color: Colors.grey[400])),
+                  Text(
+                    'Подход ${_currentSet + 1} из ${info.sets}',
+                    style: TextStyle(fontSize: 18, color: Colors.grey[400]),
+                  ),
                   const SizedBox(height: 20),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 16,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.orangeAccent.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: Colors.orangeAccent.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Column(
                       children: [
-                        Text('${info.reps}', style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.orangeAccent)),
-                        Text('повторений', style: TextStyle(fontSize: 14, color: Colors.grey[400])),
+                        Text(
+                          '${info.reps}',
+                          style: const TextStyle(
+                            fontSize: 40,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orangeAccent,
+                          ),
+                        ),
+                        Text(
+                          'повторений',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[400],
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -227,7 +283,11 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 ),
                 child: Text(
                   _isResting ? 'Отдых...' : 'Подход выполнен',
-                  style: const TextStyle(fontSize: 18, color: Colors.black, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -243,7 +303,10 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                   setState(() => _isResting = false);
                   _nextExercise();
                 },
-                child: Text('Пропустить отдых', style: TextStyle(color: Colors.grey[400])),
+                child: Text(
+                  'Пропустить отдых',
+                  style: TextStyle(color: Colors.grey[400]),
+                ),
               ),
             ),
         ],

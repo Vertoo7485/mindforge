@@ -630,7 +630,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   if (d == DismissDirection.startToEnd) {
                     await plannerDatabase.completeRecurringTask(task);
                     if (!task.isCompleted) {
-                      await rpgDatabase.addXpWithAttribute(10, 'strength');
+                      await rpgDatabase.rewardAction(
+                        xp: 10,
+                        coins: 1,
+                        attribute: 'strength',
+                      );
                       await rpgDatabase.unlockAchievement(1);
                       if (task.priority == 'high')
                         await rpgDatabase.unlockAchievement(15);
@@ -675,7 +679,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   onToggle: () async {
                     await plannerDatabase.completeRecurringTask(task);
                     if (!task.isCompleted) {
-                      await rpgDatabase.addXpWithAttribute(10, 'strength');
+                      await rpgDatabase.rewardAction(
+                        xp: 10,
+                        coins: 1,
+                        attribute: 'strength',
+                      );
                       await rpgDatabase.unlockAchievement(1);
                       if (task.priority == 'high')
                         await rpgDatabase.unlockAchievement(15);
@@ -748,7 +756,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
                         final wasDone = await plannerDatabase
                             .isHabitDoneForDate(h.id, _selectedDate);
                         if (wasDone) {
-                          await rpgDatabase.addXpWithAttribute(5, 'balance');
+                          await rpgDatabase.rewardAction(
+                            xp: 5,
+                            coins: 1,
+                            attribute: 'balance',
+                          );
                           await rpgDatabase.unlockAchievement(16);
                         }
                         _loadData();
